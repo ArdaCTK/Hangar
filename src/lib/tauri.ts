@@ -102,3 +102,26 @@ export const readProjectFile = (path: string): Promise<string> =>
 
 export const openInExplorer = (path: string): Promise<void> =>
   invoke("open_in_explorer", { path });
+
+// ── Branch Checkout ───────────────────────────────────────────────────────────
+
+export const gitCheckout = (path: string, branch: string): Promise<void> =>
+  invoke("git_checkout", { path, branch });
+
+// ── GitHub User Repos (for GitHub-only detection) ─────────────────────────────
+
+export const fetchGitHubUserRepos = (token: string): Promise<GithubRepoSummary[]> =>
+  invoke("fetch_github_user_repos", { token });
+
+export interface GithubRepoSummary {
+  name: string;
+  full_name: string;
+  clone_url: string;
+  html_url: string;
+  description: string | null;
+  private: boolean;
+  stars: number;
+  updated_at: string;
+  default_branch: string;
+  language: string | null;
+}

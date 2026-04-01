@@ -152,3 +152,71 @@ pub async fn fetch_github(
         license_name:   repo_resp["license"]["name"].as_str().map(|s| s.to_string()),
     })
 }
+
+/// Fetch all repos for the authenticated GitHub user, used to find
+/// repos that exist on GitHub but are not cloned locally.
+#[tauri::command]
+pub async fn fetch_github_user_repos(token: String) -> Result<Vec<GithubRepoSummary>, String> {
+    if token.is_empty() {
+        return Err("GitHub token required to fetch your repositories".to_string());
+    }
+    let client = build_client(&token)?;
+    let mut all_repos: Vec<GithubRepoSummary> = Vec::new();
+    let mut page = 1u32;
+
+    loop {
+        let url = format!(
+            "https://api.github.com/user/repos?per_page=100&page={}&affiliation=owner&sort=updated",
+            page
+        );
+        let resp: serde_json::Value = client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?
+            .json()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let arr = match resp.as_array() {
+            Some(a) if !a.is_empty() => a.clone(),
+            _ => break,
+        };
+
+        for r in &arr {
+            all_repos.push(GithubRepoSummary {
+                name:           r["name"].as_str().unwrap_or("").to_string(),
+                full_name:      r["full_name"].as_str().unwrap_or("").to_string(),
+                clone_url:      r["clone_url"].as_str().unwrap_or("").to_string(),
+                html_url:       r["html_url"].as_str().unwrap_or("").to_string(),
+                description:    r["description"].as_str().map(|s| s.to_string()),
+                private:        r["private"].as_bool().unwrap_or(false),
+                stars:          r["stargazers_count"].as_u64().unwrap_or(0),
+                updated_at:     r["updated_at"].as_str().unwrap_or("").to_string(),
+                default_branch: r["default_branch"].as_str().unwrap_or("main").to_string(),
+                language:       r["language"].as_str().map(|s| s.to_string()),
+            });
+        }
+
+        if arr.len() < 100 { break; }
+        page += 1;
+        // Safety cap — avoid rate limit runaway
+        if page > 10 { break; }
+    }
+
+    Ok(all_repos)
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct GithubRepoSummary {
+    pub name: String,
+    pub full_name: String,
+    pub clone_url: String,
+    pub html_url: String,
+    pub description: Option<String>,
+    pub private: bool,
+    pub stars: u64,
+    pub updated_at: String,
+    pub default_branch: String,
+    pub language: Option<String>,
+}

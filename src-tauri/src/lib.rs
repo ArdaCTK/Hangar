@@ -2,8 +2,8 @@ mod commands;
 mod models;
 
 use commands::{
-    files::{get_file_tree, get_project_details, open_in_explorer, read_project_file},
-    github::fetch_github,
+    files::{get_file_tree, get_project_details, open_in_explorer, read_project_file, git_checkout},
+    github::{fetch_github, fetch_github_user_repos},
     scanner::scan_projects,
     settings::{load_settings, save_settings},
 };
@@ -20,7 +20,9 @@ pub fn run() {
             get_file_tree,
             read_project_file,
             open_in_explorer,
+            git_checkout,
             fetch_github,
+            fetch_github_user_repos,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

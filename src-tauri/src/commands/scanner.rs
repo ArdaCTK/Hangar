@@ -219,26 +219,17 @@ fn scan_single_project(project_path: &Path, name: &str) -> ProjectInfo {
     let mut total_size = 0u64;
     let mut last_modified = 0i64;
 
+    // Pass 1: Count ALL files (including node_modules, target, dist etc.)
+    // This gives accurate disk usage numbers matching what Explorer shows.
     for entry in WalkDir::new(project_path)
         .follow_links(false)
         .into_iter()
-        .filter_entry(|e| {
-            // Skip certain directories
-            if e.file_type().is_dir() {
-                let n = e.file_name().to_string_lossy();
-                return !SKIP_DIRS.iter().any(|skip| *skip == n.as_ref());
-            }
-            true
-        })
         .flatten()
     {
         if entry.file_type().is_file() {
             file_count += 1;
-
             if let Ok(meta) = entry.metadata() {
                 total_size += meta.len();
-
-                // Track last modified
                 if let Ok(mtime) = meta.modified() {
                     if let Ok(dur) = mtime.duration_since(std::time::UNIX_EPOCH) {
                         let ts = dur.as_secs() as i64;
@@ -248,8 +239,23 @@ fn scan_single_project(project_path: &Path, name: &str) -> ProjectInfo {
                     }
                 }
             }
+        }
+    }
 
-            // Language detection
+    // Pass 2: Language detection — skip build artifacts/deps for accuracy.
+    for entry in WalkDir::new(project_path)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| {
+            if e.file_type().is_dir() {
+                let n = e.file_name().to_string_lossy();
+                return !SKIP_DIRS.iter().any(|skip| *skip == n.as_ref());
+            }
+            true
+        })
+        .flatten()
+    {
+        if entry.file_type().is_file() {
             if let Some(ext) = entry.path().extension() {
                 let ext_str = ext.to_string_lossy().to_lowercase();
                 if let Some(lang) = ext_to_lang(&ext_str) {

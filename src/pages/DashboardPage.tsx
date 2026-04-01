@@ -3,19 +3,16 @@ import { useStore } from "../store/useStore";
 import StatsGrid from "../components/Dashboard/StatsGrid";
 import LangChart from "../components/Dashboard/LangChart";
 import ProjectCard from "../components/ProjectCard";
+import GitHubOnlyRepos from "../components/Dashboard/GitHubOnlyRepos";
 import { getDashboardStats } from "../lib/tauri";
 
 const DashboardPage: React.FC = () => {
-  const { projects, isScanning, selectedProject, setSelectedProject, detailsCache } =
-    useStore();
+  const { projects, isScanning, setSelectedProject, detailsCache } = useStore();
 
-  // Compute total dependencies from cache
-  const totalDeps = useMemo(() => {
-    return Object.values(detailsCache).reduce(
-      (acc, d) => acc + d.dependencies.length,
-      0
-    );
-  }, [detailsCache]);
+  const totalDeps = useMemo(
+    () => Object.values(detailsCache).reduce((acc, d) => acc + d.dependencies.length, 0),
+    [detailsCache]
+  );
 
   const stats = useMemo(() => {
     const s = getDashboardStats(projects);
@@ -28,9 +25,7 @@ const DashboardPage: React.FC = () => {
       <div className="page-header">
         <div className="page-title">Dashboard</div>
         <div className="page-subtitle">
-          {isScanning
-            ? "Scanning projects…"
-            : `${projects.length} projects found`}
+          {isScanning ? "Scanning projects…" : `${projects.length} projects found`}
         </div>
       </div>
 
@@ -44,9 +39,10 @@ const DashboardPage: React.FC = () => {
           />
         )}
 
+        {/* Local Projects */}
         <div className="projects-section">
           <div className="section-title">
-            All Projects
+            All Local Projects
             <span className="section-count">{projects.length}</span>
           </div>
 
@@ -61,24 +57,21 @@ const DashboardPage: React.FC = () => {
             <div className="empty-state">
               <div className="empty-state-icon">📂</div>
               <div className="empty-state-title">No projects found</div>
-              <div className="empty-state-desc">
-                Configure your Projects folder path in Settings.
-              </div>
+              <div className="empty-state-desc">Configure your Projects folder path in Settings.</div>
             </div>
           )}
 
           {!isScanning && projects.length > 0 && (
             <div className="project-cards-grid">
               {projects.map((p) => (
-                <ProjectCard
-                  key={p.path}
-                  project={p}
-                  onClick={() => setSelectedProject(p.path)}
-                />
+                <ProjectCard key={p.path} project={p} onClick={() => setSelectedProject(p.path)} />
               ))}
             </div>
           )}
         </div>
+
+        {/* GitHub-only repos (below local projects) */}
+        {!isScanning && <GitHubOnlyRepos />}
       </div>
     </div>
   );
