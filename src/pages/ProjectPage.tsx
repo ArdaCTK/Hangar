@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useStore } from "../store/useStore";
-import { getProjectDetails, getFileTree, openInExplorer } from "../lib/tauri";
+import { getProjectDetails, getFileTree, openInExplorer, openInVscode } from "../lib/tauri";
 import GitInfo from "../components/ProjectDetail/GitInfo";
 import Dependencies from "../components/ProjectDetail/Dependencies";
 import FileTree from "../components/ProjectDetail/FileTree";
@@ -118,6 +118,9 @@ const ProjectPage: React.FC = () => {
             <button className="btn btn-ghost" style={{ padding: "3px 8px", fontSize: 11 }} onClick={() => openInExplorer(selectedProject)}>
               📂 Open
             </button>
+            <button className="btn btn-ghost" style={{ padding: "3px 8px", fontSize: 11 }} onClick={() => openInVscode(selectedProject)}>
+              ⌨ VS Code
+            </button>
           </div>
         </div>
 
@@ -146,7 +149,7 @@ const ProjectPage: React.FC = () => {
             <div className="info-grid" style={{ marginBottom: 20 }}>
               <div className="info-card"><div className="info-card-label">Files</div><div className="info-card-value blue">{p.file_count.toLocaleString()}</div></div>
               <div className="info-card"><div className="info-card-label">Size</div><div className="info-card-value">{p.total_size < 1024*1024 ? `${(p.total_size/1024).toFixed(0)} KB` : `${(p.total_size/1024/1024).toFixed(1)} MB`}</div></div>
-              <div className="info-card"><div className="info-card-label">Dependencies</div><div className="info-card-value yellow">{details.dependencies.length}</div></div>
+              <div className="info-card"><div className="info-card-label">Dependencies</div><div className="info-card-value yellow">{details.dependencies.length || p.dep_count}</div></div>
               <div className="info-card"><div className="info-card-label">API Connections</div><div className="info-card-value orange">{details.api_connections.length}</div></div>
               <div className="info-card"><div className="info-card-label">Branches</div><div className="info-card-value">{details.git_branches.length}</div></div>
               <div className="info-card"><div className="info-card-label">Commits</div><div className="info-card-value">{details.git_log.length}+</div></div>

@@ -4,7 +4,7 @@ export interface ProjectInfo {
   name: string; path: string; has_git: boolean;
   remote_url: string | null; github_owner: string | null; github_repo: string | null;
   languages: string[]; frameworks: string[]; project_type: string;
-  last_modified: number; file_count: number; total_size: number;
+  last_modified: number; file_count: number; total_size: number; dep_count: number;
 }
 
 export interface GitCommit {

@@ -2,9 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="description" content="Hangar — local-first developer project dashboard for Windows 11" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hangar</title>
+    <script>
+      // Disable browser right-click context menu (Tauri app, not a webpage)
+      document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+      // Disable common browser shortcuts that don't apply in a desktop app
+      document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'u' || e.key === 's' || e.key === 'p')) {
+          e.preventDefault();
+        }
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1115,3 +1115,17 @@ mark { background: rgba(232,184,75,0.25); color: var(--yellow); border-radius: 2
   border-left: 1px solid var(--border);
   border-radius: 4px;
 }
+
+/* ── Performance / CLS fixes ─────────────────────────────────────────────── */
+/* Prevent layout shift by reserving space for dynamic content */
+.stat-card { min-height: 80px; }
+.chart-card { min-height: 200px; }
+
+/* Prevent zoom on inputs (mobile/accessibility) */
+input, select, textarea { font-size: max(16px, 12px); }
+
+/* Smooth transitions don't cause CLS */
+* { transition-property: background-color, border-color, color, opacity; transition-duration: 0.12s; }
+
+/* Prevent text size adjust on orientation change */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }

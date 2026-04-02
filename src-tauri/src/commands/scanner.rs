@@ -1,4 +1,5 @@
 use crate::models::ProjectInfo;
+use crate::commands::utils::silent_command;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use walkdir::WalkDir;
@@ -285,18 +286,12 @@ fn scan_single_project(project_path: &Path, name: &str) -> ProjectInfo {
         .map(|(o, r)| (Some(o), Some(r)))
         .unwrap_or((None, None));
 
+    let dep_count = crate::commands::git::count_dependencies_fast(project_path);
     ProjectInfo {
         name: name.to_string(),
         path: project_path.to_string_lossy().to_string(),
-        has_git,
-        remote_url,
-        github_owner,
-        github_repo,
-        languages,
-        frameworks,
-        project_type,
-        last_modified,
-        file_count,
-        total_size,
+        has_git, remote_url, github_owner, github_repo,
+        languages, frameworks, project_type,
+        last_modified, file_count, total_size, dep_count,
     }
 }

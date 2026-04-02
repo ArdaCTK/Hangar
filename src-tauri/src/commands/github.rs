@@ -1,5 +1,6 @@
 use crate::models::{GitCommit, GitHubData};
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, USER_AGENT};
+use std::time::Duration;
 
 fn build_client(token: &str) -> Result<reqwest::Client, String> {
     let mut headers = HeaderMap::new();
@@ -10,7 +11,11 @@ fn build_client(token: &str) -> Result<reqwest::Client, String> {
         let auth = format!("Bearer {}", token);
         headers.insert(AUTHORIZATION, HeaderValue::from_str(&auth).map_err(|e| e.to_string())?);
     }
-    reqwest::Client::builder().default_headers(headers).build().map_err(|e| e.to_string())
+    reqwest::Client::builder()
+        .default_headers(headers)
+        .timeout(Duration::from_secs(15))
+        .connect_timeout(Duration::from_secs(8))
+        .build().map_err(|e| e.to_string())
 }
 
 async fn fetch_readme_content(client: &reqwest::Client, owner: &str, repo: &str, default_branch: &str) -> Option<String> {
@@ -126,7 +131,7 @@ pub async fn fetch_github_user_repos(token: String) -> Result<Vec<GithubRepoSumm
         }
         if arr.len() < 100 { break; }
         page += 1;
-        if page > 10 { break; }
+        if page > 3 { break; }  // limit to 300 repos max for perf
     }
     Ok(all)
 }

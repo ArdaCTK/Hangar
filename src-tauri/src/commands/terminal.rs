@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager};
-use tauri::Emitter;
+use tauri::{AppHandle, Manager, Emitter};
 
 pub struct TerminalState {
     pub children: Mutex<HashMap<String, std::process::Child>>,

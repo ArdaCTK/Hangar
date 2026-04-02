@@ -14,6 +14,7 @@ pub struct ProjectInfo {
     pub last_modified: i64,
     pub file_count: u64,
     pub total_size: u64,
+    pub dep_count: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

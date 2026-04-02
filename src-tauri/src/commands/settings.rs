@@ -5,7 +5,7 @@ use std::path::PathBuf;
 fn config_dir() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("project-dashboard")
+        .join("hangar")
 }
 
 fn settings_path() -> PathBuf { config_dir().join("settings.json") }
