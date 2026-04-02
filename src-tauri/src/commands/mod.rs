@@ -1,5 +1,10 @@
+pub mod activity;
 pub mod files;
 pub mod git;
 pub mod github;
+pub mod junk;
+pub mod mod_ports;
 pub mod scanner;
+pub mod search;
 pub mod settings;
+pub mod terminal;

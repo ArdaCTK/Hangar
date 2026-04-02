@@ -1054,3 +1054,19 @@ html, body, #root {
 }
 
 .rescan-btn:hover { border-color: var(--border2); color: var(--text2); }
+
+/* ── Pulse animation for port dots ───────────────────────────────────────── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* ── Contributions graph tooltip override ────────────────────────────────── */
+.xterm { height: 100% !important; }
+.xterm-viewport { overflow-y: hidden !important; }
+
+/* ── Search highlight ────────────────────────────────────────────────────── */
+mark { background: rgba(232,184,75,0.25); color: var(--yellow); border-radius: 2px; }
+
+/* ── GitHub modal tab fix ────────────────────────────────────────────────── */
+.modal .tabs { border-bottom: 1px solid var(--border); margin-bottom: 0; }

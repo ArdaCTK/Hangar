@@ -2,56 +2,44 @@ import React, { useEffect, useState } from "react";
 import Sidebar from "./components/Layout/Sidebar";
 import DashboardPage from "./pages/DashboardPage";
 import ProjectPage from "./pages/ProjectPage";
+import SearchPage from "./pages/SearchPage";
+import JunkDetector from "./components/Dashboard/JunkDetector";
 import { useStore } from "./store/useStore";
-import { loadSettings, saveSettings, scanProjects, selectFolder } from "./lib/tauri";
+import { loadSettings, saveSettings, scanProjects, selectFolder, loadNotes } from "./lib/tauri";
 import type { Settings } from "./types";
 
 const App: React.FC = () => {
   const {
-    settings,
-    setSettings,
+    settings, setSettings,
     selectedProject,
-    setProjects,
-    isScanning,
-    setIsScanning,
-    setScanError,
+    setProjects, isScanning, setIsScanning, setScanError,
+    activePage, setActivePage,
+    showJunkModal, setShowJunkModal,
+    setNotes,
   } = useStore();
 
-  const [showSettings, setShowSettings] = useState(false);
-  const [draftSettings, setDraftSettings] = useState<Settings>({
-    projects_path: "",
-    github_token: null,
-  });
+  const [showSettings, setShowSettings]   = useState(false);
+  const [draftSettings, setDraftSettings] = useState<Settings>({ projects_path: "", github_token: null });
 
-  // Load settings on mount
   useEffect(() => {
-    loadSettings()
-      .then((s) => {
-        setSettings(s);
-        if (s.projects_path) scan(s.projects_path);
-        else setShowSettings(true);
-      })
-      .catch(() => setShowSettings(true));
+    loadSettings().then((s) => {
+      setSettings(s);
+      if (s.projects_path) scan(s.projects_path);
+      else setShowSettings(true);
+    }).catch(() => setShowSettings(true));
+
+    loadNotes().then(setNotes).catch(() => {});
   }, []);
 
   const scan = async (path: string) => {
-    setIsScanning(true);
-    setScanError(null);
-    try {
-      const projects = await scanProjects(path);
-      setProjects(projects);
-    } catch (e) {
-      setScanError(String(e));
-    } finally {
-      setIsScanning(false);
-    }
+    setIsScanning(true); setScanError(null);
+    try { setProjects(await scanProjects(path)); }
+    catch (e) { setScanError(String(e)); }
+    finally { setIsScanning(false); }
   };
 
   const handleOpenSettings = () => {
-    setDraftSettings({
-      projects_path: settings?.projects_path ?? "",
-      github_token: settings?.github_token ?? null,
-    });
+    setDraftSettings({ projects_path: settings?.projects_path ?? "", github_token: settings?.github_token ?? null });
     setShowSettings(true);
   };
 
@@ -59,9 +47,7 @@ const App: React.FC = () => {
     await saveSettings(draftSettings);
     setSettings(draftSettings);
     setShowSettings(false);
-    if (draftSettings.projects_path) {
-      scan(draftSettings.projects_path);
-    }
+    if (draftSettings.projects_path) scan(draftSettings.projects_path);
   };
 
   const handleSelectFolder = async () => {
@@ -69,41 +55,45 @@ const App: React.FC = () => {
     if (path) setDraftSettings((d) => ({ ...d, projects_path: path }));
   };
 
+  const renderMain = () => {
+    if (selectedProject)        return <ProjectPage />;
+    if (activePage === "search") return <SearchPage />;
+    return <DashboardPage />;
+  };
+
   return (
     <div className="layout">
       <Sidebar
         onSettingsClick={handleOpenSettings}
-        onDashboardClick={() => {}}
+        onDashboardClick={() => setActivePage("dashboard")}
+        onSearchClick={() => setActivePage("search")}
+        onJunkClick={() => setShowJunkModal(true)}
       />
 
       <div className="main-content">
-        {/* Scan status bar */}
+        {/* Scan bar */}
         <div className="scan-bar">
           {isScanning ? (
-            <>
-              <div className="spinner" />
-              <span>Scanning {settings?.projects_path ?? "projects folder"}…</span>
-            </>
+            <><div className="spinner" /><span>Scanning {settings?.projects_path ?? "…"}…</span></>
           ) : (
             <>
-              <span>
-                📁 {settings?.projects_path ?? "No folder configured"}
-              </span>
-              <button
-                className="rescan-btn"
+              <span>📁 {settings?.projects_path ?? "No folder configured"}</span>
+              <button className="rescan-btn"
                 onClick={() => settings?.projects_path && scan(settings.projects_path)}
-                disabled={!settings?.projects_path || isScanning}
-              >
+                disabled={!settings?.projects_path || isScanning}>
                 ↺ Rescan
               </button>
             </>
           )}
         </div>
 
-        {selectedProject ? <ProjectPage /> : <DashboardPage />}
+        {renderMain()}
       </div>
 
-      {/* Settings Modal */}
+      {/* Junk modal */}
+      {showJunkModal && <JunkDetector />}
+
+      {/* Settings modal */}
       {showSettings && (
         <div className="modal-overlay" onClick={() => settings?.projects_path && setShowSettings(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -112,54 +102,31 @@ const App: React.FC = () => {
             <div className="form-group">
               <label className="form-label">Projects Folder</label>
               <div className="form-input-row">
-                <input
-                  className="form-input"
+                <input className="form-input"
                   placeholder="C:\Users\You\Desktop\Projects"
                   value={draftSettings.projects_path}
-                  onChange={(e) =>
-                    setDraftSettings((d) => ({ ...d, projects_path: e.target.value }))
-                  }
-                />
-                <button className="btn btn-ghost" onClick={handleSelectFolder}>
-                  Browse
-                </button>
+                  onChange={(e) => setDraftSettings((d) => ({ ...d, projects_path: e.target.value }))} />
+                <button className="btn btn-ghost" onClick={handleSelectFolder}>Browse</button>
               </div>
-              <div className="form-hint">
-                The root folder containing all your projects.
-              </div>
+              <div className="form-hint">The root folder containing all your projects.</div>
             </div>
 
             <div className="form-group">
               <label className="form-label">GitHub Personal Access Token</label>
-              <input
-                className="form-input"
-                type="password"
+              <input className="form-input" type="password"
                 placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
                 value={draftSettings.github_token ?? ""}
-                onChange={(e) =>
-                  setDraftSettings((d) => ({
-                    ...d,
-                    github_token: e.target.value || null,
-                  }))
-                }
-              />
+                onChange={(e) => setDraftSettings((d) => ({ ...d, github_token: e.target.value || null }))} />
               <div className="form-hint">
-                Optional. Required for private repos and higher rate limits.
-                Scope: repo, read:user
+                Required for private repos, GitHub-only list, and higher rate limits. Scope: repo, read:user
               </div>
             </div>
 
             <div className="modal-actions">
               {settings?.projects_path && (
-                <button className="btn btn-ghost" onClick={() => setShowSettings(false)}>
-                  Cancel
-                </button>
+                <button className="btn btn-ghost" onClick={() => setShowSettings(false)}>Cancel</button>
               )}
-              <button
-                className="btn btn-primary"
-                onClick={handleSaveSettings}
-                disabled={!draftSettings.projects_path}
-              >
+              <button className="btn btn-primary" onClick={handleSaveSettings} disabled={!draftSettings.projects_path}>
                 Save & Scan
               </button>
             </div>

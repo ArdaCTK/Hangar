@@ -4,21 +4,18 @@ import StatsGrid from "../components/Dashboard/StatsGrid";
 import LangChart from "../components/Dashboard/LangChart";
 import ProjectCard from "../components/ProjectCard";
 import GitHubOnlyRepos from "../components/Dashboard/GitHubOnlyRepos";
+import ContributionsGraph from "../components/Dashboard/ContributionsGraph";
+import PortScanner from "../components/Dashboard/PortScanner";
 import { getDashboardStats } from "../lib/tauri";
 
 const DashboardPage: React.FC = () => {
-  const { projects, isScanning, setSelectedProject, detailsCache } = useStore();
+  const { projects, isScanning, setSelectedProject, setActivePage, detailsCache } = useStore();
 
   const totalDeps = useMemo(
     () => Object.values(detailsCache).reduce((acc, d) => acc + d.dependencies.length, 0),
     [detailsCache]
   );
-
-  const stats = useMemo(() => {
-    const s = getDashboardStats(projects);
-    s.total_dependencies = totalDeps;
-    return s;
-  }, [projects, totalDeps]);
+  const stats = useMemo(() => getDashboardStats(projects, totalDeps), [projects, totalDeps]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
@@ -33,13 +30,13 @@ const DashboardPage: React.FC = () => {
         <StatsGrid stats={stats} />
 
         {!isScanning && projects.length > 0 && (
-          <LangChart
-            languages={stats.language_distribution}
-            frameworks={stats.framework_distribution}
-          />
+          <>
+            <LangChart languages={stats.language_distribution} frameworks={stats.framework_distribution} />
+            <ContributionsGraph />
+            <PortScanner />
+          </>
         )}
 
-        {/* Local Projects */}
         <div className="projects-section">
           <div className="section-title">
             All Local Projects
@@ -47,10 +44,7 @@ const DashboardPage: React.FC = () => {
           </div>
 
           {isScanning && (
-            <div className="loading-state">
-              <div className="spinner" />
-              <span>Scanning projects folder…</span>
-            </div>
+            <div className="loading-state"><div className="spinner" /><span>Scanning projects folder…</span></div>
           )}
 
           {!isScanning && projects.length === 0 && (
@@ -64,13 +58,15 @@ const DashboardPage: React.FC = () => {
           {!isScanning && projects.length > 0 && (
             <div className="project-cards-grid">
               {projects.map((p) => (
-                <ProjectCard key={p.path} project={p} onClick={() => setSelectedProject(p.path)} />
+                <ProjectCard key={p.path} project={p} onClick={() => {
+                  setSelectedProject(p.path);
+                  setActivePage("dashboard");
+                }} />
               ))}
             </div>
           )}
         </div>
 
-        {/* GitHub-only repos (below local projects) */}
         {!isScanning && <GitHubOnlyRepos />}
       </div>
     </div>

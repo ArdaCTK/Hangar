@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-// ── Project Core ──────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectInfo {
     pub name: String,
@@ -61,8 +59,6 @@ pub struct ProjectDetails {
     pub api_connections: Vec<ApiConnection>,
 }
 
-// ── GitHub ────────────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitHubData {
     pub stars: u64,
@@ -80,9 +76,9 @@ pub struct GitHubData {
     pub size_kb: u64,
     pub watchers: u64,
     pub license_name: Option<String>,
+    pub private: bool,
+    pub readme: Option<String>,
 }
-
-// ── File Tree ─────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileNode {
@@ -94,10 +90,62 @@ pub struct FileNode {
     pub children: Vec<FileNode>,
 }
 
-// ── Settings ──────────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {
     pub projects_path: String,
     pub github_token: Option<String>,
+}
+
+// ── Notes & Tags ──────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProjectNote {
+    pub note: String,
+    pub tags: Vec<String>,
+    pub updated_at: i64,
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResult {
+    pub project_name: String,
+    pub project_path: String,
+    pub file_name: String,
+    pub file_path: String,
+    pub line_number: usize,
+    pub line_content: String,
+    pub context_before: String,
+    pub context_after: String,
+}
+
+// ── Junk Detection ────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JunkItem {
+    pub path: String,
+    pub name: String,
+    pub project: String,
+    pub category: String,
+    pub size_bytes: u64,
+    pub is_dir: bool,
+}
+
+// ── Port Scanner ──────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PortInfo {
+    pub port: u16,
+    pub open: bool,
+    pub likely_project: Option<String>,
+    pub service_hint: String,
+}
+
+// ── Activity ──────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActivityDay {
+    pub date: String,    // "2024-03-15"
+    pub count: u32,
+    pub projects: Vec<String>,
 }
