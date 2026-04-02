@@ -51,8 +51,8 @@ const Sidebar: React.FC<Props> = ({ onSettingsClick, onDashboardClick, onSearchC
       {/* Logo */}
       <div className="sidebar-header">
         <div className="sidebar-logo">
-          <div className="sidebar-logo-icon">PD</div>
-          <span className="sidebar-logo-text">Project Dashboard</span>
+          <div className="sidebar-logo-icon">⚓</div>
+          <span className="sidebar-logo-text">Hangar</span>
         </div>
         <div className="sidebar-search-wrap">
           <span className="sidebar-search-icon">

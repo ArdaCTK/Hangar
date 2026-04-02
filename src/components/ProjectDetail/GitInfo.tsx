@@ -1,75 +1,111 @@
 import React, { useEffect, useState } from "react";
-import type { ProjectDetails, GitHubData } from "../../types";
-import { fetchGitHub, gitCheckout } from "../../lib/tauri";
+import type { ProjectDetails, GitHubData, GitCommit } from "../../types";
+import { fetchGitHub, gitCheckout, getGitLogForBranch } from "../../lib/tauri";
 import { useStore } from "../../store/useStore";
 
-interface Props {
-  details: ProjectDetails;
-  onBranchChange?: (newBranch: string) => void;
-}
+interface Props { details: ProjectDetails; }
 
-function parseGitHubUrl(url: string): { owner: string; repo: string } | null {
-  const m =
-    url.match(/github\.com[:/]([^/]+)\/([^/.]+?)(\.git)?$/) ??
-    url.match(/github\.com\/([^/]+)\/([^/]+)/);
+function parseGitHubUrl(url: string) {
+  const m = url.match(/github\.com[:/]([^/]+)\/([^/.]+?)(\.git)?$/)
+           ?? url.match(/github\.com\/([^/]+)\/([^/]+)/);
   if (!m) return null;
   return { owner: m[1], repo: m[2] };
 }
 
-const GitInfo: React.FC<Props> = ({ details, onBranchChange }) => {
-  const { settings, githubCache, setGitHub, loadingGitHub, setLoadingGitHub } = useStore();
-  const [tab, setTab] = useState<"local" | "github">("local");
-  const [ghError, setGhError] = useState<string | null>(null);
-  const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const [checkingOut, setCheckingOut] = useState<string | null>(null);
-  const [currentBranch, setCurrentBranch] = useState<string | null>(details.git_current_branch);
+const CommitList: React.FC<{ commits: GitCommit[] }> = ({ commits }) => (
+  commits.length === 0
+    ? <div style={{ color: "var(--text3)", fontSize: 12 }}>No commits found</div>
+    : <div className="commit-list">
+        {commits.map((c) => (
+          <div className="commit-item" key={c.hash}>
+            <span className="commit-hash">{c.short_hash}</span>
+            <span className="commit-message">{c.message}</span>
+            <span className="commit-author">{c.author}</span>
+            <span className="commit-date">{c.date.slice(0,10)}</span>
+          </div>
+        ))}
+      </div>
+);
 
-  const ghParsed = details.info.remote_url
-    ? parseGitHubUrl(details.info.remote_url)
-    : null;
-  const ghKey = ghParsed ? `${ghParsed.owner}/${ghParsed.repo}` : null;
+const GitInfo: React.FC<Props> = ({ details }) => {
+  const { settings, githubCache, setGitHub, loadingGitHub, setLoadingGitHub } = useStore();
+  const [tab, setTab]               = useState<"local" | "github">("local");
+  const [ghError, setGhError]       = useState<string | null>(null);
+  const [checkoutErr, setCheckoutErr] = useState<string | null>(null);
+  const [checkingOut, setCheckingOut] = useState<string | null>(null);
+  const [currentBranch, setCurrentBranch] = useState(details.git_current_branch);
+  const [localCommits, setLocalCommits]   = useState(details.git_log);
+  const [logLoading, setLogLoading]       = useState(false);
+
+  // GitHub state
+  const [ghBranch, setGhBranch] = useState<string | null>(null);
+  const [ghBranchCommits, setGhBranchCommits] = useState<GitCommit[] | null>(null);
+  const [ghBranchLoading, setGhBranchLoading] = useState(false);
+
+  const ghParsed = details.info.remote_url ? parseGitHubUrl(details.info.remote_url) : null;
+  const ghKey    = ghParsed ? `${ghParsed.owner}/${ghParsed.repo}` : null;
   const ghData: GitHubData | null = ghKey ? (githubCache[ghKey] ?? null) : null;
-  const isLoading = ghKey ? (loadingGitHub[ghKey] ?? false) : false;
+  const isGhLoading = ghKey ? (loadingGitHub[ghKey] ?? false) : false;
 
   useEffect(() => {
-    if (!ghParsed || !ghKey || ghData || isLoading) return;
+    if (!ghParsed || !ghKey || ghData || isGhLoading) return;
     setLoadingGitHub(ghKey, true);
     setGhError(null);
     fetchGitHub(ghParsed.owner, ghParsed.repo, settings?.github_token ?? null)
-      .then((d) => setGitHub(ghKey, d))
+      .then((d) => { setGitHub(ghKey, d); setGhBranch(d.default_branch); })
       .catch((e) => setGhError(String(e)))
       .finally(() => setLoadingGitHub(ghKey, false));
   }, [ghKey]);
 
+  // When ghData arrives, set default selected branch
+  useEffect(() => {
+    if (ghData && !ghBranch) setGhBranch(ghData.default_branch);
+  }, [ghData]);
+
+  // Fetch commits for selected GitHub branch
+  useEffect(() => {
+    if (!ghBranch || !ghParsed) return;
+    // Use ghData.commits for default branch (already fetched)
+    if (ghData && ghBranch === ghData.default_branch) {
+      setGhBranchCommits(null); return;
+    }
+    // Otherwise fetch via local git log for that remote branch
+    setGhBranchLoading(true);
+    getGitLogForBranch(details.info.path, `origin/${ghBranch}`, 30)
+      .then(setGhBranchCommits)
+      .catch(() => setGhBranchCommits([]))
+      .finally(() => setGhBranchLoading(false));
+  }, [ghBranch]);
+
   const handleCheckout = async (branch: string) => {
+    if (branch === currentBranch || checkingOut) return;
     setCheckingOut(branch);
-    setCheckoutError(null);
+    setCheckoutErr(null);
     try {
       await gitCheckout(details.info.path, branch);
       setCurrentBranch(branch);
-      onBranchChange?.(branch);
+      // Refresh commits for new branch
+      setLogLoading(true);
+      const newLog = await getGitLogForBranch(details.info.path, branch, 50);
+      setLocalCommits(newLog);
     } catch (e) {
-      setCheckoutError(String(e));
+      setCheckoutErr(String(e));
     } finally {
       setCheckingOut(null);
+      setLogLoading(false);
     }
   };
 
-  const { git_log, git_branches } = details;
+  const displayedGhCommits = ghBranchCommits ?? ghData?.commits ?? [];
 
   return (
     <div>
       <div className="docs-tabs">
-        <button className={`docs-tab-btn ${tab === "local" ? "active" : ""}`} onClick={() => setTab("local")}>
-          Local Git
-        </button>
-        {ghParsed && (
-          <button className={`docs-tab-btn ${tab === "github" ? "active" : ""}`} onClick={() => setTab("github")}>
-            GitHub
-          </button>
-        )}
+        <button className={`docs-tab-btn ${tab === "local" ? "active" : ""}`} onClick={() => setTab("local")}>Local Git</button>
+        {ghParsed && <button className={`docs-tab-btn ${tab === "github" ? "active" : ""}`} onClick={() => setTab("github")}>GitHub</button>}
       </div>
 
+      {/* ── LOCAL ── */}
       {tab === "local" && (
         <div>
           {details.info.remote_url && (
@@ -79,149 +115,137 @@ const GitInfo: React.FC<Props> = ({ details, onBranchChange }) => {
             </div>
           )}
 
-          {checkoutError && (
-            <div className="error-banner" style={{ marginBottom: "12px" }}>
-              Checkout failed: {checkoutError}
-            </div>
-          )}
+          {checkoutErr && <div className="error-banner" style={{ marginBottom: 12 }}>Checkout failed: {checkoutErr}</div>}
 
-          {/* Branches with checkout buttons */}
           <div className="section-block">
             <div className="section-block-title">
-              Branches ({git_branches.length})
-              <span style={{ marginLeft: 8, fontSize: "10px", color: "var(--text3)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+              Branches ({details.git_branches.length})
+              <span style={{ marginLeft: 8, fontSize: 10, color: "var(--text3)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
                 click to switch
               </span>
             </div>
             <div className="branch-list">
-              {git_branches.map((b) => {
+              {details.git_branches.map((b) => {
                 const trimmed = b.trim();
                 const isCurrent = trimmed === currentBranch;
                 const isLoading = checkingOut === trimmed;
                 return (
-                  <button
-                    key={trimmed}
-                    onClick={() => !isCurrent && !checkingOut && handleCheckout(trimmed)}
+                  <button key={trimmed}
+                    onClick={() => handleCheckout(trimmed)}
                     disabled={isCurrent || !!checkingOut}
                     style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 5,
-                      padding: "4px 10px",
-                      borderRadius: "3px",
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      padding: "4px 10px", borderRadius: 3,
                       background: isCurrent ? "rgba(91,156,246,0.1)" : "var(--bg3)",
                       border: `1px solid ${isCurrent ? "rgba(91,156,246,0.3)" : "var(--border)"}`,
                       color: isCurrent ? "var(--blue)" : "var(--text2)",
-                      fontSize: "11px",
-                      fontFamily: "var(--font-mono)",
+                      fontSize: 11, fontFamily: "var(--font-mono)",
                       cursor: isCurrent ? "default" : checkingOut ? "wait" : "pointer",
-                      transition: "all 0.12s",
                       opacity: checkingOut && !isCurrent && checkingOut !== trimmed ? 0.5 : 1,
-                    }}
-                    title={isCurrent ? "Current branch" : `Switch to ${trimmed}`}
-                  >
-                    {isLoading ? (
-                      <span style={{ display: "inline-block", width: 7, height: 7, border: "1.5px solid currentColor", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
-                    ) : (
-                      isCurrent && <span>●</span>
-                    )}
+                      transition: "all 0.12s",
+                    }}>
+                    {isLoading
+                      ? <span style={{ width: 7, height: 7, border: "1.5px solid currentColor", borderTopColor: "transparent", borderRadius: "50%", display: "inline-block", animation: "spin 0.7s linear infinite" }} />
+                      : isCurrent && <span>●</span>}
                     {trimmed}
-                    {!isCurrent && !isLoading && (
-                      <span style={{ opacity: 0.4, fontSize: 9 }}>↗</span>
-                    )}
+                    {!isCurrent && !isLoading && <span style={{ opacity: 0.4, fontSize: 9 }}>↗</span>}
                   </button>
                 );
               })}
-              {git_branches.length === 0 && (
-                <span style={{ color: "var(--text3)", fontSize: "12px" }}>No branches found</span>
-              )}
             </div>
           </div>
 
           <div className="section-block">
-            <div className="section-block-title">Recent Commits ({git_log.length})</div>
-            {git_log.length > 0 ? (
-              <div className="commit-list">
-                {git_log.map((c) => (
-                  <div className="commit-item" key={c.hash}>
-                    <span className="commit-hash">{c.short_hash}</span>
-                    <span className="commit-message">{c.message}</span>
-                    <span className="commit-author">{c.author}</span>
-                    <span className="commit-date">{c.date.slice(0, 10)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ color: "var(--text3)", fontSize: "12px" }}>No commits found</div>
-            )}
+            <div className="section-block-title">
+              Commits on{" "}
+              <span style={{ color: "var(--blue)", fontFamily: "var(--font-mono)" }}>{currentBranch ?? "unknown"}</span>
+              {" "}({localCommits.length})
+            </div>
+            {logLoading
+              ? <div className="loading-state" style={{ height: 60 }}><div className="spinner" /><span>Loading commits…</span></div>
+              : <CommitList commits={localCommits} />}
           </div>
         </div>
       )}
 
+      {/* ── GITHUB ── */}
       {tab === "github" && ghParsed && (
         <div>
-          {isLoading && (
-            <div className="loading-state">
-              <div className="spinner" />
-              <span>Fetching from GitHub…</span>
-            </div>
-          )}
-          {ghError && (
-            <div className="error-banner">
-              GitHub API error: {ghError}
-              {!settings?.github_token && " — Add a GitHub token in Settings for private repos & higher rate limits."}
-            </div>
-          )}
+          {isGhLoading && <div className="loading-state"><div className="spinner" /><span>Fetching from GitHub…</span></div>}
+          {ghError && <div className="error-banner">{ghError}{!settings?.github_token && " — Add a GitHub token in Settings."}</div>}
+
           {ghData && (
             <>
-              {ghData.description && (
-                <div style={{ color: "var(--text2)", fontSize: "13px", marginBottom: "16px" }}>
-                  {ghData.description}
-                </div>
-              )}
+              {ghData.description && <div style={{ color: "var(--text2)", fontSize: 13, marginBottom: 16 }}>{ghData.description}</div>}
+
               <div className="info-grid">
-                <div className="info-card"><div className="info-card-label">Stars</div><div className="info-card-value yellow">★ {ghData.stars.toLocaleString()}</div></div>
-                <div className="info-card"><div className="info-card-label">Forks</div><div className="info-card-value blue">{ghData.forks.toLocaleString()}</div></div>
-                <div className="info-card"><div className="info-card-label">Open Issues</div><div className="info-card-value orange">{ghData.open_issues.toLocaleString()}</div></div>
-                <div className="info-card"><div className="info-card-label">Open PRs</div><div className="info-card-value purple">{ghData.open_prs.toLocaleString()}</div></div>
-                <div className="info-card"><div className="info-card-label">Watchers</div><div className="info-card-value">{ghData.watchers.toLocaleString()}</div></div>
-                <div className="info-card"><div className="info-card-label">Size</div><div className="info-card-value" style={{ fontSize: "14px" }}>{ghData.size_kb >= 1024 ? `${(ghData.size_kb/1024).toFixed(1)} MB` : `${ghData.size_kb} KB`}</div></div>
+                {[
+                  ["Stars",       `★ ${ghData.stars.toLocaleString()}`,       "yellow"],
+                  ["Forks",       ghData.forks.toLocaleString(),              "blue"],
+                  ["Open Issues", ghData.open_issues.toLocaleString(),        "orange"],
+                  ["Open PRs",    ghData.open_prs.toLocaleString(),           "purple"],
+                  ["Watchers",    ghData.watchers.toLocaleString(),           ""],
+                  ["Size",        ghData.size_kb >= 1024 ? `${(ghData.size_kb/1024).toFixed(1)} MB` : `${ghData.size_kb} KB`, ""],
+                ].map(([label, val, cls]) => (
+                  <div className="info-card" key={label}>
+                    <div className="info-card-label">{label}</div>
+                    <div className={`info-card-value ${cls}`} style={{ fontSize: 16 }}>{val}</div>
+                  </div>
+                ))}
               </div>
+
               {ghData.topics.length > 0 && (
                 <div className="section-block">
                   <div className="section-block-title">Topics</div>
-                  <div className="branch-list">
-                    {ghData.topics.map((t) => (<span key={t} className="branch-tag">{t}</span>))}
-                  </div>
+                  <div className="branch-list">{ghData.topics.map((t) => <span key={t} className="branch-tag">{t}</span>)}</div>
                 </div>
               )}
+
+              {/* Branch selector for commit history */}
               <div className="section-block">
-                <div className="section-block-title">Branches on GitHub ({ghData.branches.length})</div>
+                <div className="section-block-title">
+                  Branches ({ghData.branches.length})
+                  <span style={{ marginLeft: 8, fontSize: 10, color: "var(--text3)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+                    click to view commits
+                  </span>
+                </div>
                 <div className="branch-list">
                   {ghData.branches.map((b) => (
-                    <span key={b} className={`branch-tag ${b === ghData.default_branch ? "current" : ""}`}>
-                      {b === ghData.default_branch && "● "}{b}
-                    </span>
+                    <button key={b}
+                      onClick={() => setGhBranch(b)}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        padding: "4px 10px", borderRadius: 3,
+                        background: b === ghBranch ? "rgba(91,156,246,0.1)" : "var(--bg3)",
+                        border: `1px solid ${b === ghBranch ? "rgba(91,156,246,0.3)" : "var(--border)"}`,
+                        color: b === ghBranch ? "var(--blue)" : "var(--text2)",
+                        fontSize: 11, fontFamily: "var(--font-mono)", cursor: "pointer",
+                        transition: "all 0.12s",
+                      }}>
+                      {b === ghData.default_branch && <span>●</span>}
+                      {b}
+                    </button>
                   ))}
                 </div>
               </div>
+
               <div className="section-block">
-                <div className="section-block-title">Recent Commits ({ghData.commits.length})</div>
-                <div className="commit-list">
-                  {ghData.commits.map((c) => (
-                    <div className="commit-item" key={c.hash}>
-                      <span className="commit-hash">{c.short_hash}</span>
-                      <span className="commit-message">{c.message}</span>
-                      <span className="commit-author">{c.author}</span>
-                      <span className="commit-date">{c.date.slice(0, 10)}</span>
-                    </div>
-                  ))}
+                <div className="section-block-title">
+                  Commits on{" "}
+                  <span style={{ color: "var(--blue)", fontFamily: "var(--font-mono)" }}>{ghBranch}</span>
                 </div>
+                {ghBranchLoading
+                  ? <div className="loading-state" style={{ height: 60 }}><div className="spinner" /><span>Loading…</span></div>
+                  : <CommitList commits={displayedGhCommits} />}
               </div>
-              <div style={{ marginTop: "12px", display: "flex", gap: "16px" }}>
-                <span style={{ fontSize: "11px", color: "var(--text3)" }}>Created {ghData.created_at.slice(0, 10)}</span>
-                <span style={{ fontSize: "11px", color: "var(--text3)" }}>Updated {ghData.updated_at.slice(0, 10)}</span>
-                {ghData.license_name && <span style={{ fontSize: "11px", color: "var(--text3)" }}>License: {ghData.license_name}</span>}
+
+              <div style={{ marginTop: 12, display: "flex", gap: 16 }}>
+                <span style={{ fontSize: 11, color: "var(--text3)" }}>Created {ghData.created_at.slice(0,10)}</span>
+                <span style={{ fontSize: 11, color: "var(--text3)" }}>Updated {ghData.updated_at.slice(0,10)}</span>
+                {ghData.license_name && <span style={{ fontSize: 11, color: "var(--text3)" }}>⚖ {ghData.license_name}</span>}
+                <span style={{ fontSize: 11, color: ghData.private ? "var(--yellow)" : "var(--green)" }}>
+                  {ghData.private ? "🔒 Private" : "🌐 Public"}
+                </span>
               </div>
             </>
           )}

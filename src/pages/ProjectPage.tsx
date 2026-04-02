@@ -190,7 +190,7 @@ const ProjectPage: React.FC = () => {
 
         {tab === "files"    && <FileTree nodes={fileTree} loading={fileTreeLoading} />}
         {tab === "deps"     && <Dependencies dependencies={details.dependencies} />}
-        {tab === "docs"     && <ReadmeViewer docs={details.docs} />}
+        {tab === "docs"     && <ReadmeViewer docs={details.docs} projectPath={selectedProject} />}
 
         {tab === "apis" && (
           details.api_connections.length > 0 ? (

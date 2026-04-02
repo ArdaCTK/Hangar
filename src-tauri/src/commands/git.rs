@@ -366,3 +366,30 @@ pub fn detect_api_connections(project_path: &Path) -> Vec<ApiConnection> {
 
     apis
 }
+
+/// Fetch git log for a specific branch
+#[tauri::command]
+pub fn get_git_log_for_branch(path: String, branch: String, limit: usize) -> Vec<crate::models::GitCommit> {
+    get_git_log_branch(std::path::Path::new(&path), &branch, limit)
+}
+
+fn get_git_log_branch(project_path: &std::path::Path, branch: &str, limit: usize) -> Vec<crate::models::GitCommit> {
+    let out = std::process::Command::new("git")
+        .args(["log", branch, &format!("-{}", limit), "--pretty=format:%H|%h|%s|%an|%ci"])
+        .current_dir(project_path)
+        .output();
+    let output = match out {
+        Ok(o) if o.status.success() => o,
+        _ => return vec![],
+    };
+    let raw = String::from_utf8_lossy(&output.stdout);
+    raw.lines().filter_map(|line| {
+        let parts: Vec<&str> = line.splitn(5, '|').collect();
+        if parts.len() < 5 { return None; }
+        Some(crate::models::GitCommit {
+            hash: parts[0].to_string(), short_hash: parts[1].to_string(),
+            message: parts[2].to_string(), author: parts[3].to_string(),
+            date: parts[4].to_string(),
+        })
+    }).collect()
+}

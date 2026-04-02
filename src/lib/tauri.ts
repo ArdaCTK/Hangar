@@ -86,3 +86,7 @@ export const scanPorts = (): Promise<PortInfo[]> => invoke("scan_ports");
 // ── Activity ──────────────────────────────────────────────────────────────────
 export const getActivityData = (projectPaths: string[]): Promise<ActivityDay[]> =>
   invoke("get_activity_data", { projectPaths });
+
+// ── Git log for branch ────────────────────────────────────────────────────────
+export const getGitLogForBranch = (path: string, branch: string, limit = 50): Promise<import("../types").GitCommit[]> =>
+  invoke("get_git_log_for_branch", { path, branch, limit });

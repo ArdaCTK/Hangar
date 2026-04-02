@@ -20,6 +20,7 @@ const App: React.FC = () => {
 
   const [showSettings, setShowSettings]   = useState(false);
   const [draftSettings, setDraftSettings] = useState<Settings>({ projects_path: "", github_token: null });
+  const [sidebarOpen, setSidebarOpen]     = useState(true);
 
   useEffect(() => {
     loadSettings().then((s) => {
@@ -27,7 +28,6 @@ const App: React.FC = () => {
       if (s.projects_path) scan(s.projects_path);
       else setShowSettings(true);
     }).catch(() => setShowSettings(true));
-
     loadNotes().then(setNotes).catch(() => {});
   }, []);
 
@@ -56,25 +56,39 @@ const App: React.FC = () => {
   };
 
   const renderMain = () => {
-    if (selectedProject)        return <ProjectPage />;
+    if (selectedProject)         return <ProjectPage />;
     if (activePage === "search") return <SearchPage />;
     return <DashboardPage />;
   };
 
   return (
     <div className="layout">
-      <Sidebar
-        onSettingsClick={handleOpenSettings}
-        onDashboardClick={() => setActivePage("dashboard")}
-        onSearchClick={() => setActivePage("search")}
-        onJunkClick={() => setShowJunkModal(true)}
-      />
+      {/* Sidebar with collapse */}
+      <div className={`sidebar-wrapper ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
+        {sidebarOpen && (
+          <Sidebar
+            onSettingsClick={handleOpenSettings}
+            onDashboardClick={() => setActivePage("dashboard")}
+            onSearchClick={() => setActivePage("search")}
+            onJunkClick={() => setShowJunkModal(true)}
+          />
+        )}
 
+        {/* Toggle button */}
+        <button
+          className="sidebar-toggle-btn"
+          onClick={() => setSidebarOpen((o) => !o)}
+          title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+        >
+          {sidebarOpen ? "‹" : "›"}
+        </button>
+      </div>
+
+      {/* Main */}
       <div className="main-content">
-        {/* Scan bar */}
         <div className="scan-bar">
           {isScanning ? (
-            <><div className="spinner" /><span>Scanning {settings?.projects_path ?? "…"}…</span></>
+            <><div className="spinner" /><span>Scanning…</span></>
           ) : (
             <>
               <span>📁 {settings?.projects_path ?? "No folder configured"}</span>
@@ -86,19 +100,15 @@ const App: React.FC = () => {
             </>
           )}
         </div>
-
         {renderMain()}
       </div>
 
-      {/* Junk modal */}
       {showJunkModal && <JunkDetector />}
 
-      {/* Settings modal */}
       {showSettings && (
         <div className="modal-overlay" onClick={() => settings?.projects_path && setShowSettings(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-title">⚙️ Settings</div>
-
             <div className="form-group">
               <label className="form-label">Projects Folder</label>
               <div className="form-input-row">
@@ -108,20 +118,16 @@ const App: React.FC = () => {
                   onChange={(e) => setDraftSettings((d) => ({ ...d, projects_path: e.target.value }))} />
                 <button className="btn btn-ghost" onClick={handleSelectFolder}>Browse</button>
               </div>
-              <div className="form-hint">The root folder containing all your projects.</div>
+              <div className="form-hint">Root folder containing all your projects.</div>
             </div>
-
             <div className="form-group">
               <label className="form-label">GitHub Personal Access Token</label>
               <input className="form-input" type="password"
                 placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
                 value={draftSettings.github_token ?? ""}
                 onChange={(e) => setDraftSettings((d) => ({ ...d, github_token: e.target.value || null }))} />
-              <div className="form-hint">
-                Required for private repos, GitHub-only list, and higher rate limits. Scope: repo, read:user
-              </div>
+              <div className="form-hint">Required for private repos and GitHub-only list. Scope: repo, read:user</div>
             </div>
-
             <div className="modal-actions">
               {settings?.projects_path && (
                 <button className="btn btn-ghost" onClick={() => setShowSettings(false)}>Cancel</button>

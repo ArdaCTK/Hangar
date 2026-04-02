@@ -4,6 +4,7 @@ mod models;
 use commands::{
     activity::get_activity_data,
     files::{get_file_tree, get_project_details, open_in_explorer, read_project_file, git_checkout},
+    git::get_git_log_for_branch,
     github::{fetch_github, fetch_github_user_repos},
     junk::{detect_junk, delete_junk_items},
     mod_ports::scan_ports,
@@ -34,6 +35,7 @@ pub fn run() {
             open_in_explorer,
             // git
             git_checkout,
+            get_git_log_for_branch,
             // github
             fetch_github,
             fetch_github_user_repos,
