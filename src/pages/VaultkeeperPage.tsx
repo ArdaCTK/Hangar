@@ -121,14 +121,15 @@ const VaultkeeperPage: React.FC = () => {
       <div className="page-header">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div className="page-title" style={{ marginBottom: 0 }}>🔑 Vaultkeeper</div>
-          <button className="btn btn-ghost" style={{ padding: "4px 12px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4, lineHeight: 1 }}
-            onClick={handleScanAll} disabled={scanning}>
-            <span style={{ fontSize: 12, display: "flex", alignItems: "center", marginTop: -2 }}>{scanning ? "⏳" : "🔍"}</span>
-            <span style={{ marginTop: 1 }}>{scanning ? "Scanning…" : "Scan All Projects"}</span>
-          </button>
         </div>
         <div className="page-subtitle">
           {vaultProjects.length} projects • {totalSecrets} secrets stored
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <button className="btn btn-ghost" style={{ fontSize: 11 }}
+            onClick={handleScanAll} disabled={scanning}>
+            {scanning ? "⏳ Scanning…" : "🔍 Scan All Projects"}
+          </button>
         </div>
       </div>
 
@@ -188,17 +189,17 @@ const VaultkeeperPage: React.FC = () => {
                   <option value="all">All Categories</option>
                   {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
-                <button className="btn btn-ghost" style={{ fontSize: 11 }}
+                <button className="btn btn-ghost"
                   onClick={() => setShowImport(!showImport)}>📥 Import .env</button>
-                <button className="btn btn-ghost" style={{ fontSize: 11 }}
+                <button className="btn btn-ghost"
                   onClick={handleExport}>📤 Export .env {copied === "export" ? "✓" : ""}</button>
-                <button className="btn btn-primary" style={{ fontSize: 11 }}
+                <button className="btn btn-primary"
                   onClick={() => setShowAdd(true)}>+ Add Secret</button>
               </div>
 
               {showImport && (
                 <div className="vault-import-area">
-                  <textarea className="form-input" style={{ minHeight: 80, fontFamily: "var(--font-mono)", fontSize: 11 }}
+                  <textarea className="form-input" style={{ minHeight: 80, fontFamily: "var(--font-mono)" }}
                     placeholder="Paste .env content here…&#10;KEY=value&#10;API_KEY=abc123"
                     value={importText} onChange={e => setImportText(e.target.value)} />
                   <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
@@ -212,12 +213,12 @@ const VaultkeeperPage: React.FC = () => {
                 <div className="vault-add-row">
                   <input className="form-input" placeholder="KEY_NAME" value={addKey}
                     onChange={e => setAddKey(e.target.value.toUpperCase())}
-                    style={{ fontFamily: "var(--font-mono)", flex: 1 }} />
+                    style={{ fontFamily: "var(--font-mono)" }} />
                   <input className="form-input" placeholder="secret value" value={addValue}
                     onChange={e => setAddValue(e.target.value)}
-                    style={{ flex: 2 }} type="password" />
+                    type="password" />
                   <select className="form-input" value={addCategory}
-                    onChange={e => setAddCategory(e.target.value)} style={{ width: 100 }}>
+                    onChange={e => setAddCategory(e.target.value)}>
                     {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                   </select>
                   <button className="btn btn-primary" onClick={handleAddSecret} disabled={!addKey}>Add</button>

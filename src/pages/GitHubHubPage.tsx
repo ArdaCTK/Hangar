@@ -27,7 +27,7 @@ const GitHubHubPage: React.FC = () => {
     setGhHubLoading(true);
     fetchAllReposIssues(token, stateFilter === "all" ? "all" : stateFilter)
       .then(setGhIssues)
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setGhHubLoading(false));
   }, [token, stateFilter]);
 

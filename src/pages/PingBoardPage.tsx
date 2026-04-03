@@ -134,10 +134,9 @@ const PingBoardPage: React.FC = () => {
       <div className="page-header">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div className="page-title" style={{ marginBottom: 0 }}>📡 PingBoard</div>
-          <button className="btn btn-ghost" style={{ padding: "4px 12px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4, lineHeight: 1 }}
+          <button className="btn btn-ghost"
             onClick={() => setShowAdd(true)}>
-            <span style={{ fontSize: 12, display: "flex", alignItems: "center", marginTop: -2 }}>+</span>
-            <span style={{ marginTop: 1 }}>Add Monitor</span>
+            + Add Monitor
           </button>
         </div>
         <div className="page-subtitle">
@@ -153,7 +152,7 @@ const PingBoardPage: React.FC = () => {
             <div className="empty-state-icon">📡</div>
             <div className="empty-state-title">No monitors configured</div>
             <div className="empty-state-desc">Add a monitor to track uptime of your services and APIs.</div>
-            <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => setShowAdd(true)}>
+            <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
               + Add First Monitor
             </button>
           </div>
@@ -169,8 +168,7 @@ const PingBoardPage: React.FC = () => {
               <input className="form-input" placeholder="URL (e.g., https://api.example.com/health)"
                 value={addUrl} onChange={e => setAddUrl(e.target.value)} />
               <div style={{ display: "flex", gap: 8 }}>
-                <select className="form-input" value={addMethod} onChange={e => setAddMethod(e.target.value)}
-                  style={{ width: 100 }}>
+                <select className="form-input" value={addMethod} onChange={e => setAddMethod(e.target.value)}>
                   <option>GET</option><option>HEAD</option><option>POST</option>
                 </select>
                 <select className="form-input" value={addInterval} onChange={e => setAddInterval(Number(e.target.value))}>
@@ -197,12 +195,12 @@ const PingBoardPage: React.FC = () => {
                 <div className="ping-status-dot" style={{ background: statusColor(mon.last_status) }} />
                 <div className="ping-card-name">{mon.name}</div>
                 <div className="ping-card-actions">
-                  <button className="btn btn-ghost" style={{ padding: "2px 6px", fontSize: 10 }}
+                  <button className="btn btn-ghost"
                     onClick={e => { e.stopPropagation(); handleCheck(mon.id); }}
                     disabled={checking[mon.id]}>
                     {checking[mon.id] ? "⟳" : "Check"}
                   </button>
-                  <button className="btn btn-ghost" style={{ padding: "2px 6px", fontSize: 10, color: "var(--red)" }}
+                  <button className="btn btn-ghost" style={{ color: "var(--red)" }}
                     onClick={e => { e.stopPropagation(); handleRemove(mon.id); }}>
                     ✕
                   </button>

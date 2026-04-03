@@ -86,7 +86,7 @@ const MeridianPage: React.FC = () => {
 
         {view === "monthly" && (
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button className="btn btn-ghost" style={{ padding: "3px 8px" }}
+            <button className="btn btn-ghost"
               onClick={() => setSelectedMonth(prev => {
                 const d = new Date(prev.year, prev.month - 2, 1);
                 return { year: d.getFullYear(), month: d.getMonth() + 1 };
@@ -94,7 +94,7 @@ const MeridianPage: React.FC = () => {
             <span style={{ fontSize: 12, minWidth: 90, textAlign: "center" }}>
               {selectedMonth.year}-{String(selectedMonth.month).padStart(2, "0")}
             </span>
-            <button className="btn btn-ghost" style={{ padding: "3px 8px" }}
+            <button className="btn btn-ghost"
               onClick={() => setSelectedMonth(prev => {
                 const d = new Date(prev.year, prev.month, 1);
                 return { year: d.getFullYear(), month: d.getMonth() + 1 };
@@ -102,7 +102,7 @@ const MeridianPage: React.FC = () => {
           </div>
         )}
 
-        <button className="btn btn-ghost" style={{ marginLeft: "auto", fontSize: 11 }}
+        <button className="btn btn-ghost" style={{ marginLeft: "auto" }}
           onClick={() => view === "weekly" ? loadWeekly() : loadMonthly()}>
           ↺ Refresh
         </button>
@@ -199,11 +199,10 @@ const MeridianPage: React.FC = () => {
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <label style={{ fontSize: 11, color: "var(--text3)" }}>Hourly Rate:</label>
                   <input className="form-input" type="number" value={exportHourlyRate}
-                    onChange={e => setExportHourlyRate(Number(e.target.value))}
-                    style={{ width: 80 }} />
+                    onChange={e => setExportHourlyRate(Number(e.target.value))} />
                   <span style={{ fontSize: 11, color: "var(--text3)" }}>$/hr</span>
                   <button className="btn btn-primary" onClick={handleExport}
-                    disabled={exporting} style={{ marginLeft: 8 }}>
+                    disabled={exporting}>
                     {exporting ? "Generating…" : "Generate CSV"}
                   </button>
                 </div>
@@ -211,7 +210,7 @@ const MeridianPage: React.FC = () => {
                 {exportResult && (
                   <div className="meridian-export-result">
                     <pre className="meridian-csv-preview">{exportResult}</pre>
-                    <button className="btn btn-ghost" style={{ marginTop: 8 }}
+                    <button className="btn btn-ghost"
                       onClick={() => copyToClipboard(exportResult)}>
                       📋 Copy to Clipboard
                     </button>
