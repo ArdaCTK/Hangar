@@ -4,6 +4,8 @@ import type {
   ProjectInfo, ProjectDetails, GitHubData, GithubRepoSummary,
   FileNode, Settings, DashboardStats, ActivityDay, SearchResult,
   JunkItem, DeleteResult, PortInfo, ScriptInfo, ProjectNote, LanguageStat,
+  VaultProject, VaultSecret, Monitor, PingRecord,
+  WeeklyReport, MonthlyReport, GitHubIssue, GitHubComment,
 } from "../types";
 
 // ── Settings ──────────────────────────────────────────────────────────────────
@@ -92,3 +94,44 @@ export const getActivityData = (projectPaths: string[]): Promise<ActivityDay[]> 
 // ── Git log for branch ────────────────────────────────────────────────────────
 export const getGitLogForBranch = (path: string, branch: string, limit = 50): Promise<import("../types").GitCommit[]> =>
   invoke("get_git_log_for_branch", { path, branch, limit });
+
+// ── Vaultkeeper ─────────────────────────────────────────────────────────────
+export const vaultGetAll        = (): Promise<VaultProject[]>     => invoke("vault_get_all");
+export const vaultAddSecret     = (projectPath: string, key: string, value: string, category: string): Promise<void> =>
+  invoke("vault_add_secret", { projectPath, key, value, category });
+export const vaultDeleteSecret  = (projectPath: string, key: string): Promise<void> =>
+  invoke("vault_delete_secret", { projectPath, key });
+export const vaultExportEnv     = (projectPath: string): Promise<string> =>
+  invoke("vault_export_env", { projectPath });
+export const vaultImportEnv     = (projectPath: string, envContent: string): Promise<number> =>
+  invoke("vault_import_env", { projectPath, envContent });
+export const vaultScanProjectEnv = (projectPath: string): Promise<VaultSecret[]> =>
+  invoke("vault_scan_project_env", { projectPath });
+
+// ── PingBoard ──────────────────────────────────────────────────────────────
+export const pingAddMonitor     = (name: string, url: string, intervalSeconds: number, method: string): Promise<Monitor> =>
+  invoke("ping_add_monitor", { name, url, intervalSeconds, method });
+export const pingRemoveMonitor  = (id: string): Promise<void> => invoke("ping_remove_monitor", { id });
+export const pingGetAllMonitors = (): Promise<Monitor[]> => invoke("ping_get_all_monitors");
+export const pingCheckNow       = (id: string): Promise<Monitor> => invoke("ping_check_now", { id });
+export const pingGetHistory     = (id: string): Promise<PingRecord[]> => invoke("ping_get_history", { id });
+export const pingUpdateMonitor  = (id: string, name: string, url: string, intervalSeconds: number, method: string, isActive: boolean): Promise<void> =>
+  invoke("ping_update_monitor", { id, name, url, intervalSeconds, method, isActive });
+
+// ── Meridian (Time Tracker) ────────────────────────────────────────────────
+export const timeGetWeeklyReport  = (projectPaths: string[]): Promise<WeeklyReport> =>
+  invoke("time_get_weekly_report", { projectPaths });
+export const timeGetMonthlyReport = (projectPaths: string[], year: number, month: number): Promise<MonthlyReport> =>
+  invoke("time_get_monthly_report", { projectPaths, year, month });
+export const timeExportCsv = (projectPaths: string[], startDate: string, endDate: string, hourlyRate: number): Promise<string> =>
+  invoke("time_export_csv", { projectPaths, startDate, endDate, hourlyRate });
+
+// ── GitHub Hub ─────────────────────────────────────────────────────────────
+export const fetchGitHubIssues     = (owner: string, repo: string, token: string, state: string, page: number): Promise<GitHubIssue[]> =>
+  invoke("fetch_github_issues", { owner, repo, token, state, page });
+export const fetchAllReposIssues   = (token: string, state: string): Promise<GitHubIssue[]> =>
+  invoke("fetch_all_repos_issues", { token, state });
+export const fetchGitHubComments   = (owner: string, repo: string, issueNumber: number, token: string): Promise<GitHubComment[]> =>
+  invoke("fetch_github_comments", { owner, repo, issueNumber, token });
+export const postGitHubComment     = (owner: string, repo: string, issueNumber: number, body: string, token: string): Promise<GitHubComment> =>
+  invoke("post_github_comment", { owner, repo, issueNumber, body, token });

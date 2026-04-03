@@ -3,9 +3,14 @@ import Sidebar from "./components/Layout/Sidebar";
 import DashboardPage from "./pages/DashboardPage";
 import ProjectPage from "./pages/ProjectPage";
 import SearchPage from "./pages/SearchPage";
+import GitHubHubPage from "./pages/GitHubHubPage";
+import PingBoardPage from "./pages/PingBoardPage";
+import MeridianPage from "./pages/MeridianPage";
+import VaultkeeperPage from "./pages/VaultkeeperPage";
 import JunkDetector from "./components/Dashboard/JunkDetector";
 import { useStore } from "./store/useStore";
 import { loadSettings, saveSettings, scanProjects, selectFolder, loadNotes } from "./lib/tauri";
+
 import type { Settings } from "./types";
 
 const App: React.FC = () => {
@@ -56,9 +61,15 @@ const App: React.FC = () => {
   };
 
   const renderMain = () => {
-    if (selectedProject)         return <ProjectPage />;
-    if (activePage === "search") return <SearchPage />;
-    return <DashboardPage />;
+    if (selectedProject) return <ProjectPage />;
+    switch (activePage) {
+      case "search":      return <SearchPage />;
+      case "github-hub":  return <GitHubHubPage />;
+      case "vaultkeeper": return <VaultkeeperPage />;
+      case "meridian":    return <MeridianPage />;
+      case "pingboard":   return <PingBoardPage />;
+      default:            return <DashboardPage />;
+    }
   };
 
   return (
@@ -129,6 +140,7 @@ const App: React.FC = () => {
               <div className="form-hint">Required for private repos and GitHub-only list. Scope: repo, read:user</div>
             </div>
             <div className="modal-actions">
+              <div style={{ flex: 1 }} />
               {settings?.projects_path && (
                 <button className="btn btn-ghost" onClick={() => setShowSettings(false)}>Cancel</button>
               )}

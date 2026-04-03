@@ -1,4 +1,4 @@
-use crate::models::{GitCommit, GitHubData};
+use crate::models::{GitCommit, GitHubData, GitHubIssue, GitHubLabel, GitHubComment};
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, USER_AGENT};
 use std::time::Duration;
 
@@ -149,4 +149,131 @@ pub struct GithubRepoSummary {
     pub default_branch: String,
     pub language: Option<String>,
     pub owner: String,
+}
+
+// ── GitHub Hub: Issues & PRs ──────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn fetch_github_issues(owner: String, repo: String, token: String, state: String, page: u32) -> Result<Vec<GitHubIssue>, String> {
+    let client = build_client(&token)?;
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/issues?state={}&per_page=30&page={}&sort=updated&direction=desc",
+        owner, repo, state, page
+    );
+    let resp: serde_json::Value = client.get(&url).send().await
+        .map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
+
+    let full_name = format!("{}/{}", owner, repo);
+    let arr = resp.as_array().ok_or("Invalid response")?;
+    let issues: Vec<GitHubIssue> = arr.iter().map(|i| parse_issue(i, &full_name)).collect();
+    Ok(issues)
+}
+
+#[tauri::command]
+pub async fn fetch_all_repos_issues(token: String, state: String) -> Result<Vec<GitHubIssue>, String> {
+    if token.is_empty() { return Err("GitHub token required".to_string()); }
+    let client = build_client(&token)?;
+
+    // First get user repos
+    let repos_url = "https://api.github.com/user/repos?per_page=100&affiliation=owner&sort=updated";
+    let repos_resp: serde_json::Value = client.get(repos_url).send().await
+        .map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
+
+    let repos = repos_resp.as_array().ok_or("Invalid repos response")?;
+    let mut all_issues: Vec<GitHubIssue> = Vec::new();
+
+    // Fetch issues from first 15 repos to avoid rate limiting
+    for repo in repos.iter().take(15) {
+        let full_name = repo["full_name"].as_str().unwrap_or("").to_string();
+        let url = format!(
+            "https://api.github.com/repos/{}/issues?state={}&per_page=20&sort=updated&direction=desc",
+            full_name, state
+        );
+        if let Ok(resp) = client.get(&url).send().await {
+            if let Ok(val) = resp.json::<serde_json::Value>().await {
+                if let Some(arr) = val.as_array() {
+                    for issue in arr {
+                        all_issues.push(parse_issue(issue, &full_name));
+                    }
+                }
+            }
+        }
+    }
+
+    // Sort by updated_at desc
+    all_issues.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    Ok(all_issues)
+}
+
+#[tauri::command]
+pub async fn fetch_github_comments(owner: String, repo: String, issue_number: u64, token: String) -> Result<Vec<GitHubComment>, String> {
+    let client = build_client(&token)?;
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/issues/{}/comments?per_page=50",
+        owner, repo, issue_number
+    );
+    let resp: serde_json::Value = client.get(&url).send().await
+        .map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
+
+    let arr = resp.as_array().ok_or("Invalid response")?;
+    let comments: Vec<GitHubComment> = arr.iter().map(|c| {
+        GitHubComment {
+            id: c["id"].as_u64().unwrap_or(0),
+            body: c["body"].as_str().unwrap_or("").to_string(),
+            user_login: c["user"]["login"].as_str().unwrap_or("").to_string(),
+            user_avatar: c["user"]["avatar_url"].as_str().unwrap_or("").to_string(),
+            created_at: c["created_at"].as_str().unwrap_or("").to_string(),
+            updated_at: c["updated_at"].as_str().unwrap_or("").to_string(),
+        }
+    }).collect();
+    Ok(comments)
+}
+
+#[tauri::command]
+pub async fn post_github_comment(owner: String, repo: String, issue_number: u64, body: String, token: String) -> Result<GitHubComment, String> {
+    if token.is_empty() { return Err("Token required to post comments".to_string()); }
+    let client = build_client(&token)?;
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/issues/{}/comments",
+        owner, repo, issue_number
+    );
+    let payload = serde_json::json!({ "body": body });
+    let resp: serde_json::Value = client.post(&url).json(&payload).send().await
+        .map_err(|e| e.to_string())?
+        .json().await.map_err(|e| e.to_string())?;
+
+    Ok(GitHubComment {
+        id: resp["id"].as_u64().unwrap_or(0),
+        body: resp["body"].as_str().unwrap_or("").to_string(),
+        user_login: resp["user"]["login"].as_str().unwrap_or("").to_string(),
+        user_avatar: resp["user"]["avatar_url"].as_str().unwrap_or("").to_string(),
+        created_at: resp["created_at"].as_str().unwrap_or("").to_string(),
+        updated_at: resp["updated_at"].as_str().unwrap_or("").to_string(),
+    })
+}
+
+fn parse_issue(i: &serde_json::Value, repo_full_name: &str) -> GitHubIssue {
+    let labels: Vec<GitHubLabel> = i["labels"].as_array().unwrap_or(&vec![]).iter().map(|l| {
+        GitHubLabel {
+            name: l["name"].as_str().unwrap_or("").to_string(),
+            color: l["color"].as_str().unwrap_or("cccccc").to_string(),
+        }
+    }).collect();
+
+    GitHubIssue {
+        id: i["id"].as_u64().unwrap_or(0),
+        number: i["number"].as_u64().unwrap_or(0),
+        title: i["title"].as_str().unwrap_or("").to_string(),
+        state: i["state"].as_str().unwrap_or("").to_string(),
+        body: i["body"].as_str().map(|s| s.to_string()),
+        user_login: i["user"]["login"].as_str().unwrap_or("").to_string(),
+        user_avatar: i["user"]["avatar_url"].as_str().unwrap_or("").to_string(),
+        labels,
+        comments_count: i["comments"].as_u64().unwrap_or(0),
+        created_at: i["created_at"].as_str().unwrap_or("").to_string(),
+        updated_at: i["updated_at"].as_str().unwrap_or("").to_string(),
+        is_pull_request: i.get("pull_request").is_some(),
+        repo_full_name: repo_full_name.to_string(),
+        html_url: i["html_url"].as_str().unwrap_or("").to_string(),
+    }
 }

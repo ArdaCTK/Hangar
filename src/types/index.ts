@@ -100,3 +100,100 @@ export interface ScriptInfo {
   name: string; command: string; program: string;
   args: string[]; ecosystem: string; hint: string;
 }
+
+// ── Vaultkeeper ───────────────────────────────────────────────────────────────
+
+export interface VaultSecret {
+  key: string;
+  value: string;
+  category: 'env' | 'api_key' | 'ssh_key' | 'token' | 'custom';
+  created_at: number;
+  updated_at: number;
+}
+
+export interface VaultProject {
+  project_path: string;
+  project_name: string;
+  secrets: VaultSecret[];
+}
+
+// ── Meridian (Time Tracker) ───────────────────────────────────────────────────
+
+export interface TimeEntry {
+  project_name: string;
+  project_path: string;
+  date: string;
+  duration_minutes: number;
+  source: 'git_commits';
+}
+
+export interface WeeklyReport {
+  week_start: string;
+  total_hours: number;
+  projects: { name: string; hours: number; percentage: number }[];
+  daily: { date: string; hours: number }[];
+}
+
+export interface MonthlyReport {
+  month: string;
+  total_hours: number;
+  projects: { name: string; hours: number; percentage: number }[];
+  weekly: { week: string; hours: number }[];
+}
+
+// ── PingBoard ─────────────────────────────────────────────────────────────────
+
+export interface Monitor {
+  id: string;
+  name: string;
+  url: string;
+  method: 'GET' | 'POST' | 'HEAD';
+  interval_seconds: number;
+  is_active: boolean;
+  last_status: 'up' | 'down' | 'degraded' | 'unknown';
+  last_response_ms: number | null;
+  last_checked_at: number | null;
+  uptime_24h: number;
+  created_at: number;
+}
+
+export interface PingRecord {
+  timestamp: number;
+  status: 'up' | 'down' | 'degraded';
+  response_ms: number;
+  status_code: number | null;
+  error: string | null;
+}
+
+// ── GitHub Hub ────────────────────────────────────────────────────────────────
+
+export interface GitHubIssue {
+  id: number;
+  number: number;
+  title: string;
+  state: string;
+  body: string | null;
+  user_login: string;
+  user_avatar: string;
+  labels: GitHubLabel[];
+  comments_count: number;
+  created_at: string;
+  updated_at: string;
+  is_pull_request: boolean;
+  repo_full_name: string;
+  html_url: string;
+}
+
+export interface GitHubLabel {
+  name: string;
+  color: string;
+}
+
+export interface GitHubComment {
+  id: number;
+  body: string;
+  user_login: string;
+  user_avatar: string;
+  created_at: string;
+  updated_at: string;
+}

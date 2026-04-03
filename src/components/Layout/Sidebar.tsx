@@ -16,7 +16,9 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
   { value: "files",  label: "Most files" },
 ];
 
-function sortProjects(projects: ReturnType<typeof useStore>["projects"], mode: SortMode) {
+import type { ProjectInfo } from "../../types";
+
+function sortProjects(projects: ProjectInfo[], mode: SortMode) {
   const arr = [...projects];
   switch (mode) {
     case "az":     return arr.sort((a, b) => a.name.localeCompare(b.name));
@@ -91,6 +93,42 @@ const Sidebar: React.FC<Props> = ({ onSettingsClick, onDashboardClick, onSearchC
             <path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 10h8l1-10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           Junk Cleaner
+        </button>
+
+        <div style={{ height: 1, background: "var(--border)", margin: "6px 0" }} />
+
+        <button className={`sidebar-nav-btn ${activePage === "github-hub" ? "active" : ""}`}
+          onClick={() => { setSelectedProject(null); setActivePage("github-hub"); }}>
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4"/>
+            <circle cx="8" cy="8" r="2" fill="currentColor"/>
+          </svg>
+          GitHub Hub
+        </button>
+        <button className={`sidebar-nav-btn ${activePage === "vaultkeeper" ? "active" : ""}`}
+          onClick={() => { setSelectedProject(null); setActivePage("vaultkeeper"); }}>
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+            <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+            <circle cx="8" cy="11" r="1" fill="currentColor"/>
+          </svg>
+          Vaultkeeper
+        </button>
+        <button className={`sidebar-nav-btn ${activePage === "meridian" ? "active" : ""}`}
+          onClick={() => { setSelectedProject(null); setActivePage("meridian"); }}>
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4"/>
+            <path d="M8 4v4l3 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Meridian
+        </button>
+        <button className={`sidebar-nav-btn ${activePage === "pingboard" ? "active" : ""}`}
+          onClick={() => { setSelectedProject(null); setActivePage("pingboard"); }}>
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <path d="M1 12l3-4 3 2 4-6 4 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx="14" cy="7" r="1.5" fill="currentColor"/>
+          </svg>
+          PingBoard
         </button>
       </div>
 

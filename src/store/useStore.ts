@@ -2,9 +2,12 @@ import { create } from "zustand";
 import type {
   ProjectInfo, ProjectDetails, GitHubData, Settings,
   ActivityDay, SearchResult, JunkItem, PortInfo, ProjectNote,
+  VaultProject, Monitor, PingRecord, GitHubIssue, GitHubComment,
+  WeeklyReport, MonthlyReport,
 } from "../types";
 
 export type SortMode = "recent" | "az" | "za" | "size" | "files";
+export type ActivePage = "dashboard" | "search" | "vaultkeeper" | "meridian" | "pingboard" | "github-hub";
 
 interface AppStore {
   settings: Settings | null;
@@ -45,8 +48,8 @@ interface AppStore {
   setSearchResults: (r: SearchResult[]) => void;
   searchLoading: boolean;
   setSearchLoading: (b: boolean) => void;
-  activePage: "dashboard" | "search";
-  setActivePage: (p: "dashboard" | "search") => void;
+  activePage: ActivePage;
+  setActivePage: (p: ActivePage) => void;
 
   // Junk
   junkItems: JunkItem[];
@@ -63,6 +66,32 @@ interface AppStore {
   notes: Record<string, ProjectNote>;
   setNotes: (n: Record<string, ProjectNote>) => void;
   setNote: (path: string, note: ProjectNote) => void;
+
+  // ── Vaultkeeper ──
+  vaultProjects: VaultProject[];
+  setVaultProjects: (p: VaultProject[]) => void;
+  vaultLoading: boolean; setVaultLoading: (b: boolean) => void;
+
+  // ── PingBoard ──
+  monitors: Monitor[];
+  setMonitors: (m: Monitor[]) => void;
+  pingHistory: Record<string, PingRecord[]>;
+  setPingHistory: (id: string, records: PingRecord[]) => void;
+  pingLoading: boolean; setPingLoading: (b: boolean) => void;
+
+  // ── Meridian ──
+  weeklyReport: WeeklyReport | null;
+  setWeeklyReport: (r: WeeklyReport | null) => void;
+  monthlyReport: MonthlyReport | null;
+  setMonthlyReport: (r: MonthlyReport | null) => void;
+  meridianLoading: boolean; setMeridianLoading: (b: boolean) => void;
+
+  // ── GitHub Hub ──
+  ghIssues: GitHubIssue[];
+  setGhIssues: (issues: GitHubIssue[]) => void;
+  ghIssueComments: Record<string, GitHubComment[]>;
+  setGhIssueComments: (key: string, comments: GitHubComment[]) => void;
+  ghHubLoading: boolean; setGhHubLoading: (b: boolean) => void;
 }
 
 export const useStore = create<AppStore>((set) => ({
@@ -103,4 +132,25 @@ export const useStore = create<AppStore>((set) => ({
 
   notes: {}, setNotes: (notes) => set({ notes }),
   setNote: (path, note) => set((s) => ({ notes: { ...s.notes, [path]: note } })),
+
+  // ── Vaultkeeper ──
+  vaultProjects: [], setVaultProjects: (vaultProjects) => set({ vaultProjects }),
+  vaultLoading: false, setVaultLoading: (vaultLoading) => set({ vaultLoading }),
+
+  // ── PingBoard ──
+  monitors: [], setMonitors: (monitors) => set({ monitors }),
+  pingHistory: {},
+  setPingHistory: (id, records) => set((s) => ({ pingHistory: { ...s.pingHistory, [id]: records } })),
+  pingLoading: false, setPingLoading: (pingLoading) => set({ pingLoading }),
+
+  // ── Meridian ──
+  weeklyReport: null, setWeeklyReport: (weeklyReport) => set({ weeklyReport }),
+  monthlyReport: null, setMonthlyReport: (monthlyReport) => set({ monthlyReport }),
+  meridianLoading: false, setMeridianLoading: (meridianLoading) => set({ meridianLoading }),
+
+  // ── GitHub Hub ──
+  ghIssues: [], setGhIssues: (ghIssues) => set({ ghIssues }),
+  ghIssueComments: {},
+  setGhIssueComments: (key, comments) => set((s) => ({ ghIssueComments: { ...s.ghIssueComments, [key]: comments } })),
+  ghHubLoading: false, setGhHubLoading: (ghHubLoading) => set({ ghHubLoading }),
 }));
