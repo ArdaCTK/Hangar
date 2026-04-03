@@ -12,6 +12,16 @@ _Built with Tauri 2 · Rust · React 18 · TypeScript_
 
 ---
 
+<p align="center">
+  <img src="assets/preview-main.png" alt="Hangar preview main" />
+</p>
+
+<p align="center">
+  <img src="assets/preview.png" alt="Hangar preview" />
+</p>
+
+---
+
 Hangar gives you a unified command centre for every project on your machine. Scan your Projects folder and instantly see language distributions, commit history, GitHub stats, dependencies, running dev servers, and more — all without leaving your desktop.
 
 ## Features
