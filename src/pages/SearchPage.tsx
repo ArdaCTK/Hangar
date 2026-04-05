@@ -29,8 +29,7 @@ function highlight(text: string, query: string): React.ReactNode {
 
 const SearchPage: React.FC = () => {
   const { settings, searchResults, setSearchResults, searchLoading, setSearchLoading, setSelectedProject, setActivePage } = useStore();
-  const [query, setQuery]           = useState("");
-  const [activeFile, setActiveFile] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const doSearch = useCallback((q: string) => {
@@ -51,7 +50,6 @@ const SearchPage: React.FC = () => {
     debounceRef.current = setTimeout(() => doSearch(val), 400);
   };
 
-  // Group by project
   const grouped = searchResults.reduce<Record<string, typeof searchResults>>((acc, r) => {
     (acc[r.project_name] = acc[r.project_name] ?? []).push(r);
     return acc;
@@ -64,13 +62,11 @@ const SearchPage: React.FC = () => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-      {/* Header */}
       <div className="page-header" style={{ paddingBottom: 16 }}>
         <div className="page-title">Search All Projects</div>
         <div className="page-subtitle">Full-text search across source files, docs, config</div>
       </div>
 
-      {/* Search bar */}
       <div style={{ padding: "0 28px 16px" }}>
         <div className="sidebar-search-wrap" style={{ maxWidth: 600 }}>
           <span className="sidebar-search-icon" style={{ left: 12 }}>
@@ -100,7 +96,6 @@ const SearchPage: React.FC = () => {
         )}
       </div>
 
-      {/* Results */}
       <div style={{ flex: 1, overflowY: "auto", padding: "0 28px 20px" }}>
         {!query && (
           <div className="empty-state">
@@ -120,7 +115,6 @@ const SearchPage: React.FC = () => {
 
         {Object.entries(grouped).map(([projectName, results]) => (
           <div key={projectName} style={{ marginBottom: 20 }}>
-            {/* Project header */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <button
                 onClick={() => goToProject(results[0].project_path)}
@@ -131,7 +125,6 @@ const SearchPage: React.FC = () => {
               <span style={{ fontSize: 11, color: "var(--text3)" }}>{results.length} match{results.length !== 1 ? "es" : ""}</span>
             </div>
 
-            {/* File groups within project */}
             {Object.entries(
               results.reduce<Record<string, typeof results>>((acc, r) => {
                 (acc[r.file_name] = acc[r.file_name] ?? []).push(r);
@@ -139,21 +132,14 @@ const SearchPage: React.FC = () => {
               }, {})
             ).map(([fileName, fileResults]) => (
               <div key={fileName} style={{ marginBottom: 10 }}>
-                <button
-                  style={{
-                    display: "flex", alignItems: "center", gap: 6, background: "none", border: "none",
-                    cursor: "pointer", padding: "4px 0", marginBottom: 4,
-                  }}
-                  onClick={() => setActiveFile(activeFile === `${projectName}/${fileName}` ? null : `${projectName}/${fileName}`)}
-                >
+                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0", marginBottom: 4 }}>
                   <span style={{ fontSize: 12 }}>{getIcon(fileName)}</span>
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text2)" }}>{fileName}</span>
                   <span style={{ fontSize: 10, color: "var(--text3)", fontFamily: "var(--font-mono)" }}>
                     ({fileResults.length})
                   </span>
-                </button>
+                </div>
 
-                {/* Match lines */}
                 <div style={{
                   background: "var(--bg2)", border: "1px solid var(--border)",
                   borderRadius: "var(--radius)", overflow: "hidden",

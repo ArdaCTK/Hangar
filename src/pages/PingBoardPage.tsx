@@ -7,16 +7,15 @@ import type { Monitor, PingRecord } from "../types";
 
 const PingBoardPage: React.FC = () => {
   const { monitors, setMonitors, pingHistory, setPingHistory } = useStore();
-  const [loading, setLoading] = useState(false);
-  const [showAdd, setShowAdd] = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [showAdd, setShowAdd]   = useState(false);
   const [selectedMonitor, setSelectedMonitor] = useState<string | null>(null);
   const [checking, setChecking] = useState<Record<string, boolean>>({});
 
-  // Add monitor form
-  const [addName, setAddName] = useState("");
-  const [addUrl, setAddUrl] = useState("https://");
+  const [addName, setAddName]       = useState("");
+  const [addUrl, setAddUrl]         = useState("https://");
   const [addInterval, setAddInterval] = useState(60);
-  const [addMethod, setAddMethod] = useState("GET");
+  const [addMethod, setAddMethod]   = useState("GET");
 
   const intervalRef = useRef<number | null>(null);
 
@@ -25,12 +24,11 @@ const PingBoardPage: React.FC = () => {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
 
+  // Poll every 10 s and check each monitor against its own configured interval
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (monitors.length > 0) {
-      intervalRef.current = window.setInterval(() => {
-        checkAllMonitors();
-      }, 30000); // Check every 30s
+      intervalRef.current = window.setInterval(checkDueMonitors, 10_000);
     }
   }, [monitors.length]);
 
@@ -39,30 +37,37 @@ const PingBoardPage: React.FC = () => {
     try {
       let m = await pingGetAllMonitors();
       setMonitors(m);
-      // Auto-check all on load
       for (const mon of m) {
         if (mon.is_active) {
           try {
             const updated = await pingCheckNow(mon.id);
             m = m.map(p => p.id === updated.id ? updated : p);
             setMonitors(m);
-          } catch { }
+          } catch { /* continue */ }
         }
       }
-    } catch { }
+    } catch (e) {
+      console.error("Failed to load monitors:", e);
+    }
     setLoading(false);
   };
 
-  const checkAllMonitors = async () => {
+  /**
+   * Checks only the monitors that are due based on their individual interval_seconds.
+   * Called every 10 s so the granularity is ±10 s — acceptable for a dev tool.
+   */
+  const checkDueMonitors = async () => {
     const current = useStore.getState().monitors;
+    const now = Math.floor(Date.now() / 1000);
     for (const mon of current) {
-      if (mon.is_active) {
-        try {
-          const updated = await pingCheckNow(mon.id);
-          const latest = useStore.getState().monitors;
-          setMonitors(latest.map(p => p.id === updated.id ? updated : p));
-        } catch { }
-      }
+      if (!mon.is_active) continue;
+      const lastChecked = mon.last_checked_at ?? 0;
+      if (now - lastChecked < mon.interval_seconds) continue;
+      try {
+        const updated = await pingCheckNow(mon.id);
+        const latest = useStore.getState().monitors;
+        setMonitors(latest.map(p => p.id === updated.id ? updated : p));
+      } catch { /* continue */ }
     }
   };
 
@@ -74,13 +79,14 @@ const PingBoardPage: React.FC = () => {
       setMonitors([...current, m]);
       setShowAdd(false);
       setAddName(""); setAddUrl("https://"); setAddInterval(60); setAddMethod("GET");
-      // Immediately check it
       try {
         const updated = await pingCheckNow(m.id);
         const latest = useStore.getState().monitors;
         setMonitors(latest.map(p => p.id === updated.id ? updated : p));
-      } catch { }
-    } catch { }
+      } catch { /* first check failed, will retry */ }
+    } catch (e) {
+      console.error("Failed to add monitor:", e);
+    }
   };
 
   const handleRemove = async (id: string) => {
@@ -96,7 +102,9 @@ const PingBoardPage: React.FC = () => {
       const updated = await pingCheckNow(id);
       const current = useStore.getState().monitors;
       setMonitors(current.map(m => m.id === updated.id ? updated : m));
-    } catch { }
+    } catch (e) {
+      console.error("Check failed:", e);
+    }
     setChecking(prev => ({ ...prev, [id]: false }));
   };
 
@@ -106,13 +114,13 @@ const PingBoardPage: React.FC = () => {
       try {
         const history = await pingGetHistory(id);
         setPingHistory(id, history);
-      } catch { }
+      } catch { /* history unavailable */ }
     }
   };
 
   const statusColor = (status: string) => {
-    if (status === "up") return "var(--green)";
-    if (status === "down") return "var(--red)";
+    if (status === "up")       return "var(--green)";
+    if (status === "down")     return "var(--red)";
     if (status === "degraded") return "var(--yellow)";
     return "var(--text3)";
   };
@@ -120,24 +128,18 @@ const PingBoardPage: React.FC = () => {
   const selectedHistory = selectedMonitor ? (pingHistory[selectedMonitor] ?? []) : [];
   const selectedMon = monitors.find(m => m.id === selectedMonitor);
 
-  const uptimeBarData = (history: PingRecord[]) => {
-    const last30 = history.slice(-30);
-    return last30.map(r => ({
-      status: r.status,
-      ms: r.response_ms,
+  const uptimeBarData = (history: PingRecord[]) =>
+    history.slice(-30).map(r => ({
+      status: r.status, ms: r.response_ms,
       time: new Date(r.timestamp * 1000).toLocaleTimeString(),
     }));
-  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       <div className="page-header">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div className="page-title" style={{ marginBottom: 0 }}>📡 PingBoard</div>
-          <button className="btn btn-ghost"
-            onClick={() => setShowAdd(true)}>
-            + Add Monitor
-          </button>
+          <button className="btn btn-ghost" onClick={() => setShowAdd(true)}>+ Add Monitor</button>
         </div>
         <div className="page-subtitle">
           {monitors.length} monitors • {monitors.filter(m => m.last_status === "up").length} up • {monitors.filter(m => m.last_status === "down").length} down
@@ -152,13 +154,10 @@ const PingBoardPage: React.FC = () => {
             <div className="empty-state-icon">📡</div>
             <div className="empty-state-title">No monitors configured</div>
             <div className="empty-state-desc">Add a monitor to track uptime of your services and APIs.</div>
-            <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
-              + Add First Monitor
-            </button>
+            <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add First Monitor</button>
           </div>
         )}
 
-        {/* Add Modal */}
         {showAdd && (
           <div className="ping-add-card">
             <div className="section-block-title" style={{ marginBottom: 12 }}>Add Monitor</div>
@@ -186,7 +185,6 @@ const PingBoardPage: React.FC = () => {
           </div>
         )}
 
-        {/* Monitor Cards */}
         <div className="ping-grid">
           {monitors.map(mon => (
             <div key={mon.id} className={`ping-card ${selectedMonitor === mon.id ? "active" : ""}`}
@@ -227,8 +225,6 @@ const PingBoardPage: React.FC = () => {
                   </span>
                 </div>
               </div>
-
-              {/* Mini uptime bar */}
               <div className="ping-uptime-bar">
                 {uptimeBarData(pingHistory[mon.id] ?? []).map((d, i) => (
                   <div key={i} className="ping-bar-segment"
@@ -240,29 +236,23 @@ const PingBoardPage: React.FC = () => {
           ))}
         </div>
 
-        {/* Detail Panel */}
         {selectedMon && (
           <div className="ping-detail">
             <div className="section-block-title" style={{ marginBottom: 12 }}>
               Response History — {selectedMon.name}
             </div>
-
             <div className="ping-history-chart">
               {selectedHistory.slice(-50).map((r, i) => {
                 const maxMs = Math.max(...selectedHistory.map(h => h.response_ms), 1);
                 const heightPct = Math.min((r.response_ms / maxMs) * 100, 100);
                 return (
                   <div key={i} className="ping-history-bar"
-                    style={{
-                      height: `${Math.max(heightPct, 4)}%`,
-                      background: statusColor(r.status),
-                    }}
+                    style={{ height: `${Math.max(heightPct, 4)}%`, background: statusColor(r.status) }}
                     title={`${new Date(r.timestamp * 1000).toLocaleString()} — ${r.response_ms}ms ${r.error ?? ""}`}
                   />
                 );
               })}
             </div>
-
             {selectedHistory.length > 0 && (
               <div className="ping-history-stats">
                 <div>Avg: {Math.round(selectedHistory.reduce((a, r) => a + r.response_ms, 0) / selectedHistory.length)}ms</div>

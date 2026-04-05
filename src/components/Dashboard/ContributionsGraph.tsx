@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { useStore } from "../../store/useStore";
 import { getActivityData } from "../../lib/tauri";
 
@@ -14,16 +14,13 @@ function getColor(count: number): string {
   return "#5cba7d";
 }
 
-/** Build a 52-week grid (364 days) ending today */
 function buildGrid(data: { date: string; count: number; projects: string[] }[]) {
   const dateMap = new Map(data.map((d) => [d.date, d]));
   const today   = new Date();
   const grid: { date: string; count: number; projects: string[]; dayOfWeek: number }[][] = [];
 
-  // Rewind to start of week 52 weeks ago
   const start = new Date(today);
   start.setDate(start.getDate() - 364);
-  // Rewind to Sunday of that week
   start.setDate(start.getDate() - start.getDay());
 
   let cursor = new Date(start);
@@ -43,28 +40,32 @@ function buildGrid(data: { date: string; count: number; projects: string[] }[]) 
 const ContributionsGraph: React.FC = () => {
   const { projects, activityData, setActivityData, activityLoading, setActivityLoading } = useStore();
 
+  // Use a ref to ensure we only fetch once per mount, regardless of state changes
+  const fetchedRef = useRef(false);
+
   useEffect(() => {
-    if (activityData.length > 0 || activityLoading) return;
+    if (fetchedRef.current || activityData.length > 0) return;
     const paths = projects.filter((p) => p.has_git).map((p) => p.path);
     if (paths.length === 0) return;
+
+    fetchedRef.current = true;
     setActivityLoading(true);
     getActivityData(paths)
       .then(setActivityData)
-      .catch(() => {})
+      .catch(console.error)
       .finally(() => setActivityLoading(false));
-  }, [projects]);
+  }, [projects, activityData.length]);
 
-  const { grid, start } = useMemo(() => buildGrid(activityData), [activityData]);
+  const { grid } = useMemo(() => buildGrid(activityData), [activityData]);
 
   const totalCommits = useMemo(() => activityData.reduce((s, d) => s + d.count, 0), [activityData]);
   const activeDays   = useMemo(() => activityData.filter((d) => d.count > 0).length, [activityData]);
 
-  // Month labels above grid
   const monthLabels = useMemo(() => {
     const labels: { label: string; col: number }[] = [];
     let lastMonth = -1;
     grid.forEach((week, col) => {
-      const firstDay = week.find((d) => d.count >= 0);
+      const firstDay = week[0];
       if (!firstDay) return;
       const m = new Date(firstDay.date).getMonth();
       if (m !== lastMonth) { labels.push({ label: MONTHS[m], col }); lastMonth = m; }
@@ -90,13 +91,12 @@ const ContributionsGraph: React.FC = () => {
 
   const CELL = 11;
   const GAP  = 2;
-  const totalW = grid.length * (CELL + GAP);
 
   return (
     <div style={{ padding: "0 28px 16px" }}>
       <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text3)" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text3)" }}>
             Commit Activity — Last 52 Weeks
           </div>
           <div style={{ display: "flex", gap: 16, fontSize: "11px", color: "var(--text3)" }}>
@@ -106,7 +106,6 @@ const ContributionsGraph: React.FC = () => {
         </div>
 
         <div style={{ overflowX: "auto", paddingBottom: 4 }}>
-          {/* Month labels */}
           <div style={{ display: "flex", marginLeft: 24, marginBottom: 4, position: "relative", height: 14 }}>
             {monthLabels.map(({ label, col }) => (
               <span key={label + col} style={{
@@ -117,7 +116,6 @@ const ContributionsGraph: React.FC = () => {
           </div>
 
           <div style={{ display: "flex", gap: 0 }}>
-            {/* Day-of-week labels */}
             <div style={{ display: "flex", flexDirection: "column", gap: GAP, marginRight: 4, marginTop: 1 }}>
               {[0,1,2,3,4,5,6].map((d) => (
                 <div key={d} style={{ height: CELL, fontSize: 9, color: "var(--text3)", lineHeight: `${CELL}px`, whiteSpace: "nowrap", width: 18 }}>
@@ -126,7 +124,6 @@ const ContributionsGraph: React.FC = () => {
               ))}
             </div>
 
-            {/* Week columns */}
             <div style={{ display: "flex", gap: GAP }}>
               {grid.map((week, wi) => (
                 <div key={wi} style={{ display: "flex", flexDirection: "column", gap: GAP }}>
@@ -150,7 +147,6 @@ const ContributionsGraph: React.FC = () => {
           </div>
         </div>
 
-        {/* Legend */}
         <div style={{ display: "flex", gap: 4, alignItems: "center", marginTop: 8, fontSize: 10, color: "var(--text3)" }}>
           <span>Less</span>
           {[0, 2, 5, 10, 20, 30].map((v) => (

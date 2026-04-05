@@ -2,33 +2,33 @@ import React, { useEffect, useState } from "react";
 import { useStore } from "../store/useStore";
 import {
   vaultGetAll, vaultAddSecret, vaultDeleteSecret, vaultExportEnv,
-  vaultImportEnv, vaultScanProjectEnv, selectFolder,
+  vaultImportEnv, vaultScanProjectEnv,
 } from "../lib/tauri";
-import type { VaultProject, VaultSecret } from "../types";
+import type { VaultProject } from "../types";
 
 const CATEGORIES = [
-  { value: "env", label: "ENV", color: "#5b9cf6" },
-  { value: "api_key", label: "API Key", color: "#e8b84b" },
-  { value: "ssh_key", label: "SSH Key", color: "#5cba7d" },
-  { value: "token", label: "Token", color: "#a78bfa" },
-  { value: "custom", label: "Custom", color: "#555555" },
+  { value: "env",    label: "ENV",     color: "#5b9cf6" },
+  { value: "api_key",label: "API Key", color: "#e8b84b" },
+  { value: "ssh_key",label: "SSH Key", color: "#5cba7d" },
+  { value: "token",  label: "Token",   color: "#a78bfa" },
+  { value: "custom", label: "Custom",  color: "#555555" },
 ];
 
 const VaultkeeperPage: React.FC = () => {
   const { vaultProjects, setVaultProjects, vaultLoading, setVaultLoading, projects } = useStore();
 
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
-  const [showAdd, setShowAdd] = useState(false);
-  const [addKey, setAddKey] = useState("");
-  const [addValue, setAddValue] = useState("");
+  const [showAdd, setShowAdd]     = useState(false);
+  const [addKey, setAddKey]       = useState("");
+  const [addValue, setAddValue]   = useState("");
   const [addCategory, setAddCategory] = useState("env");
   const [showValues, setShowValues] = useState<Record<string, boolean>>({});
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter]       = useState("");
   const [catFilter, setCatFilter] = useState<string>("all");
-  const [scanning, setScanning] = useState(false);
+  const [scanning, setScanning]   = useState(false);
   const [importText, setImportText] = useState("");
   const [showImport, setShowImport] = useState(false);
-  const [copied, setCopied] = useState<string | null>(null);
+  const [copied, setCopied]       = useState<string | null>(null);
 
   useEffect(() => { loadVault(); }, []);
 
@@ -37,7 +37,9 @@ const VaultkeeperPage: React.FC = () => {
     try {
       const data = await vaultGetAll();
       setVaultProjects(data);
-    } catch { }
+    } catch (e) {
+      console.error("Failed to load vault:", e);
+    }
     setVaultLoading(false);
   };
 
@@ -61,7 +63,9 @@ const VaultkeeperPage: React.FC = () => {
       await navigator.clipboard.writeText(envContent);
       setCopied("export");
       setTimeout(() => setCopied(null), 2000);
-    } catch { }
+    } catch (e) {
+      console.error("Export failed:", e);
+    }
   };
 
   const handleImport = async () => {
@@ -79,7 +83,9 @@ const VaultkeeperPage: React.FC = () => {
         await vaultAddSecret(projectPath, s.key, s.value, s.category);
       }
       loadVault();
-    } catch { }
+    } catch (e) {
+      console.error("Scan failed:", e);
+    }
     setScanning(false);
   };
 
@@ -91,7 +97,9 @@ const VaultkeeperPage: React.FC = () => {
         for (const s of secrets) {
           await vaultAddSecret(p.path, s.key, s.value, s.category);
         }
-      } catch { }
+      } catch (e) {
+        console.error(`Scan failed for ${p.name}:`, e);
+      }
     }
     await loadVault();
     setScanning(false);
@@ -134,7 +142,6 @@ const VaultkeeperPage: React.FC = () => {
       </div>
 
       <div className="vault-layout">
-        {/* Project List */}
         <div className="vault-sidebar">
           <div className="vault-sidebar-header">
             <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "var(--text3)", letterSpacing: "0.06em" }}>
@@ -142,7 +149,6 @@ const VaultkeeperPage: React.FC = () => {
             </div>
           </div>
 
-          {/* List projects from vault */}
           {vaultProjects.map(vp => (
             <button key={vp.project_path}
               className={`vault-project-btn ${selectedProject === vp.project_path ? "active" : ""}`}
@@ -153,7 +159,6 @@ const VaultkeeperPage: React.FC = () => {
             </button>
           ))}
 
-          {/* Add new project from scanned projects */}
           <div style={{ borderTop: "1px solid var(--border)", padding: "8px 0", marginTop: 8 }}>
             <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "var(--text3)", letterSpacing: "0.06em", padding: "4px 10px" }}>
               Local Projects
@@ -169,7 +174,6 @@ const VaultkeeperPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Secret List */}
         <div className="vault-main">
           {!selectedProject && (
             <div className="empty-state" style={{ height: "100%" }}>

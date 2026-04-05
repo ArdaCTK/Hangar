@@ -31,11 +31,15 @@ Hangar gives you a unified command centre for every project on your machine. Sca
 - **Per-project detail** — 8 tabs: Overview · Git/GitHub · Files · Dependencies · Docs · APIs · Terminal · Notes
 - **Branch management** — switch local branches with one click; commits update instantly
 - **GitHub integration** — stars, forks, open issues/PRs, topics, branches, README, public/private badge
-- **GitHub-only repos** — see which of your GitHub repos are not cloned locally, with full detail modal
+- **GitHub Hub** — view and comment on issues/PRs across all your repositories
+- **GitHub-only repos** — see which of your GitHub repos are not cloned locally
 - **Full-text search** — search across all source files, docs, and configs simultaneously
 - **Integrated terminal** — xterm.js terminal per project with npm/cargo/make script runner
 - **Junk cleaner** — detect and bulk-delete node_modules, build artifacts, caches, logs
 - **Port scanner** — see which dev servers are running on localhost right now
+- **Vaultkeeper** — store and organise project secrets (AES-256-GCM encrypted, machine-local)
+- **PingBoard** — uptime monitoring for local and remote services
+- **Meridian** — time tracking derived from git commit history
 - **Notes & tags** — attach colour-coded notes and tags to any project (persisted locally)
 - **Collapsible sidebar** — with sort by date/name/size/files and filter
 
@@ -86,12 +90,20 @@ Settings and notes are stored locally at:
 
 On Windows this maps to `C:\Users\<you>\AppData\Roaming\hangar\`.
 
+## Security Notes
+
+**GitHub token** — stored in `settings.json` in your AppData folder. It is not transmitted anywhere other than the GitHub API.
+
+**Vaultkeeper** — secrets are encrypted with AES-256-GCM using a key derived from your machine hostname and Windows username. The vault is machine-local and non-portable by design. Always export your secrets (`.env` export button) before migrating to a new machine.
+
+**PingBoard** — monitors use valid SSL certificate verification. Use `http://` for local dev servers that don't have HTTPS.
+
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Desktop shell | Tauri 2 |
-| Backend | Rust (walkdir, reqwest, tokio, serde) |
+| Backend | Rust (walkdir, reqwest, aes-gcm, tokio, serde) |
 | Frontend | React 18 + TypeScript |
 | State | Zustand |
 | Charts | Recharts |

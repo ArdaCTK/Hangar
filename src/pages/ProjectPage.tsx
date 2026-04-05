@@ -27,12 +27,14 @@ const ProjectPage: React.FC = () => {
     selectedProject, setSelectedProject,
     detailsCache, setDetails, loadingDetails, setLoadingDetails,
     notes,
+    // Reactive selector — keeps component in sync when cache updates
+    githubCache,
   } = useStore();
 
-  const [tab, setTab]                   = useState<Tab>("overview");
-  const [fileTree, setFileTree]         = useState<FileNode[]>([]);
-  const [fileTreeLoading, setFTL]       = useState(false);
-  const [error, setError]               = useState<string | null>(null);
+  const [tab, setTab]             = useState<Tab>("overview");
+  const [fileTree, setFileTree]   = useState<FileNode[]>([]);
+  const [fileTreeLoading, setFTL] = useState(false);
+  const [error, setError]         = useState<string | null>(null);
 
   const details    = selectedProject ? detailsCache[selectedProject] : null;
   const isLoading  = selectedProject ? (loadingDetails[selectedProject] ?? false) : false;
@@ -56,7 +58,7 @@ const ProjectPage: React.FC = () => {
   useEffect(() => {
     if (tab !== "files" || !selectedProject || fileTree.length > 0 || fileTreeLoading) return;
     setFTL(true);
-    getFileTree(selectedProject).then(setFileTree).catch(() => {}).finally(() => setFTL(false));
+    getFileTree(selectedProject).then(setFileTree).catch(console.error).finally(() => setFTL(false));
   }, [tab, selectedProject]);
 
   if (!selectedProject) return (
@@ -85,9 +87,7 @@ const ProjectPage: React.FC = () => {
   const p = details.info;
   const projectName = selectedProject.split(/[/\\]/).pop() ?? selectedProject;
 
-  // Visibility badge from GitHub cache
   const ghKey = p.github_owner && p.github_repo ? `${p.github_owner}/${p.github_repo}` : null;
-  const { githubCache } = useStore.getState();
   const ghData = ghKey ? githubCache[ghKey] : null;
   const visibilityLabel = ghData ? (ghData.private ? "🔒 private" : "🌐 public") : null;
 
@@ -143,7 +143,6 @@ const ProjectPage: React.FC = () => {
       </div>
 
       <div className="detail-body">
-        {/* ── Overview ── */}
         {tab === "overview" && (
           <div>
             <div className="info-grid" style={{ marginBottom: 20 }}>
