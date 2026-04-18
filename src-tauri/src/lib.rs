@@ -14,7 +14,7 @@ use commands::{
     settings::{load_settings, save_settings, load_notes, save_note, delete_note},
     terminal::{terminal_run, terminal_kill, get_project_scripts, TerminalState},
     timetracker::{time_get_weekly_report, time_get_monthly_report, time_export_csv},
-    vault::{vault_get_all, vault_add_secret, vault_delete_secret, vault_export_env, vault_import_env, vault_scan_project_env},
+    vault::{vault_get_all, vault_add_secret, vault_add_secrets_batch, vault_delete_secret, vault_export_env, vault_import_env, vault_scan_project_env},
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -41,7 +41,7 @@ pub fn run() {
             scan_ports,
             get_activity_data,
             // Vaultkeeper
-            vault_get_all, vault_add_secret, vault_delete_secret, vault_export_env, vault_import_env, vault_scan_project_env,
+            vault_get_all, vault_add_secret, vault_add_secrets_batch, vault_delete_secret, vault_export_env, vault_import_env, vault_scan_project_env,
             // PingBoard
             ping_add_monitor, ping_remove_monitor, ping_get_all_monitors, ping_check_now, ping_get_history, ping_update_monitor,
             // Meridian

@@ -92,11 +92,15 @@ On Windows this maps to `C:\Users\<you>\AppData\Roaming\hangar\`.
 
 ## Security Notes
 
-**GitHub token** — stored in `settings.json` in your AppData folder. It is not transmitted anywhere other than the GitHub API.
+**GitHub token** — encrypted at rest in `settings.json` using AES-256-GCM with PBKDF2-derived keys and a random salt per write. It is only sent to the GitHub API.
 
-**Vaultkeeper** — secrets are encrypted with AES-256-GCM using a key derived from your machine hostname and Windows username. The vault is machine-local and non-portable by design. Always export your secrets (`.env` export button) before migrating to a new machine.
+**Vaultkeeper** — secrets are encrypted with AES-256-GCM and machine-bound PBKDF2 key derivation with random salt. Legacy plaintext and legacy encrypted vault files are auto-migrated to the stronger format on first read.
 
 **PingBoard** — monitors use valid SSL certificate verification. Use `http://` for local dev servers that don't have HTTPS.
+
+**Integrated terminal** — executes arbitrary commands that you type. Treat it as a trusted-developer tool and do not run untrusted input.
+
+**Meridian estimates** — time is inferred from commit gaps and clamped between 15 and 120 minutes per commit interval. This is an estimate, not precise time tracking.
 
 ## Tech Stack
 

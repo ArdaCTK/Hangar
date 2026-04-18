@@ -15,4 +15,8 @@ pub fn apply_no_window(cmd: &mut Command) {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
     }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = cmd;
+    }
 }

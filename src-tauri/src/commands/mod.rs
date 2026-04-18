@@ -1,4 +1,5 @@
 pub mod activity;
+pub mod crypto;
 pub mod files;
 pub mod git;
 pub mod github;

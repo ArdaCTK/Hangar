@@ -1,4 +1,5 @@
 use crate::models::PortInfo;
+use rayon::prelude::*;
 use std::net::TcpStream;
 use std::time::Duration;
 
@@ -52,32 +53,28 @@ fn is_port_open(port: u16) -> bool {
 
 #[tauri::command]
 pub fn scan_ports() -> Vec<PortInfo> {
-    use std::sync::{Arc, Mutex};
     use std::collections::HashSet;
 
-    let results: Arc<Mutex<Vec<PortInfo>>> = Arc::new(Mutex::new(Vec::new()));
-    let mut handles = Vec::new();
     let mut seen_ports = HashSet::new();
+    let mut ports = Vec::new();
 
     for &(port, hint) in DEV_PORTS {
-        if !seen_ports.insert(port) { continue; } // deduplicate
-        let results = Arc::clone(&results);
-        let hint = hint.to_string();
-        handles.push(std::thread::spawn(move || {
-            let open = is_port_open(port);
-            results.lock().unwrap().push(PortInfo {
-                port,
-                open,
-                likely_project: None,
-                service_hint: hint,
-            });
-        }));
+        if !seen_ports.insert(port) {
+            continue;
+        }
+        ports.push((port, hint.to_string()));
     }
 
-    for h in handles { let _ = h.join(); }
+    let mut res: Vec<PortInfo> = ports
+        .par_iter()
+        .map(|(port, hint)| PortInfo {
+            port: *port,
+            open: is_port_open(*port),
+            likely_project: None,
+            service_hint: hint.clone(),
+        })
+        .collect();
 
-    let mut res = results.lock().unwrap().clone();
-    // Sort: open ports first, then by port number
     res.sort_by(|a, b| b.open.cmp(&a.open).then(a.port.cmp(&b.port)));
     res
 }

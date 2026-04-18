@@ -34,6 +34,8 @@ const ProjectPage: React.FC = () => {
   const [tab, setTab]             = useState<Tab>("overview");
   const [fileTree, setFileTree]   = useState<FileNode[]>([]);
   const [fileTreeLoading, setFTL] = useState(false);
+  const [fileTreeLoadedFor, setFileTreeLoadedFor] = useState<string | null>(null);
+  const [fileTreeError, setFileTreeError] = useState<string | null>(null);
   const [error, setError]         = useState<string | null>(null);
 
   const details    = selectedProject ? detailsCache[selectedProject] : null;
@@ -43,6 +45,8 @@ const ProjectPage: React.FC = () => {
   useEffect(() => {
     setTab("overview");
     setFileTree([]);
+    setFileTreeLoadedFor(null);
+    setFileTreeError(null);
   }, [selectedProject]);
 
   useEffect(() => {
@@ -56,10 +60,21 @@ const ProjectPage: React.FC = () => {
   }, [selectedProject]);
 
   useEffect(() => {
-    if (tab !== "files" || !selectedProject || fileTree.length > 0 || fileTreeLoading) return;
+    if (tab !== "files" || !selectedProject || fileTreeLoading || fileTreeError) return;
+    if (fileTreeLoadedFor === selectedProject) return;
     setFTL(true);
-    getFileTree(selectedProject).then(setFileTree).catch(console.error).finally(() => setFTL(false));
-  }, [tab, selectedProject]);
+    setFileTreeError(null);
+    getFileTree(selectedProject)
+      .then((nodes) => {
+        setFileTree(nodes);
+        setFileTreeLoadedFor(selectedProject);
+      })
+      .catch((e) => {
+        setFileTreeError(String(e));
+        console.error(e);
+      })
+      .finally(() => setFTL(false));
+  }, [tab, selectedProject, fileTreeLoading, fileTreeError, fileTreeLoadedFor]);
 
   if (!selectedProject) return (
     <div className="empty-state">
@@ -190,7 +205,16 @@ const ProjectPage: React.FC = () => {
           : <div className="docs-empty"><div className="empty-state-icon">🔗</div><div className="empty-state-title">No Git repository</div></div>
         )}
 
-        {tab === "files"    && <FileTree nodes={fileTree} loading={fileTreeLoading} />}
+        {tab === "files" && (
+          <>
+            {fileTreeError && (
+              <div className="error-banner" style={{ marginBottom: 12 }}>
+                Failed to load file tree: {fileTreeError}
+              </div>
+            )}
+            <FileTree nodes={fileTree} loading={fileTreeLoading} />
+          </>
+        )}
         {tab === "deps"     && <Dependencies dependencies={details.dependencies} />}
         {tab === "docs"     && <ReadmeViewer docs={details.docs} projectPath={selectedProject} />}
 

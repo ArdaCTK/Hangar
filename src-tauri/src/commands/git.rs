@@ -122,32 +122,6 @@ pub fn collect_dependencies(project_path: &Path) -> Vec<Dependency> {
     all
 }
 
-/// Fast dep count (no deep parsing, just count keys in manifest)
-pub fn count_dependencies_fast(project_path: &Path) -> u32 {
-    let mut count = 0u32;
-    let pkg = project_path.join("package.json");
-    if pkg.exists() {
-        if let Ok(raw) = std::fs::read_to_string(&pkg) {
-            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw) {
-                for key in &["dependencies","devDependencies","peerDependencies"] {
-                    count += val.get(*key).and_then(|v| v.as_object()).map(|o| o.len() as u32).unwrap_or(0);
-                }
-            }
-        }
-    }
-    let cargo = project_path.join("Cargo.toml");
-    if cargo.exists() {
-        if let Ok(raw) = std::fs::read_to_string(&cargo) {
-            if let Ok(val) = raw.parse::<toml::Value>() {
-                for key in &["dependencies","dev-dependencies","build-dependencies"] {
-                    count += val.get(*key).and_then(|v| v.as_table()).map(|t| t.len() as u32).unwrap_or(0);
-                }
-            }
-        }
-    }
-    count
-}
-
 fn try_read(project_path: &Path, candidates: &[&str]) -> Option<String> {
     for name in candidates {
         let p = project_path.join(name);

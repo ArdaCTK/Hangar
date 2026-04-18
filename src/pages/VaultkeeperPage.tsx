@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useStore } from "../store/useStore";
 import {
   vaultGetAll, vaultAddSecret, vaultDeleteSecret, vaultExportEnv,
-  vaultImportEnv, vaultScanProjectEnv,
+  vaultImportEnv, vaultScanProjectEnv, vaultAddSecretsBatch,
 } from "../lib/tauri";
 import type { VaultProject } from "../types";
 
@@ -79,10 +79,13 @@ const VaultkeeperPage: React.FC = () => {
     setScanning(true);
     try {
       const secrets = await vaultScanProjectEnv(projectPath);
-      for (const s of secrets) {
-        await vaultAddSecret(projectPath, s.key, s.value, s.category);
+      if (secrets.length > 0) {
+        await vaultAddSecretsBatch(
+          projectPath,
+          secrets.map((s) => ({ key: s.key, value: s.value, category: s.category })),
+        );
       }
-      loadVault();
+      await loadVault();
     } catch (e) {
       console.error("Scan failed:", e);
     }
@@ -91,16 +94,29 @@ const VaultkeeperPage: React.FC = () => {
 
   const handleScanAll = async () => {
     setScanning(true);
-    for (const p of projects) {
-      try {
-        const secrets = await vaultScanProjectEnv(p.path);
-        for (const s of secrets) {
-          await vaultAddSecret(p.path, s.key, s.value, s.category);
+    const queue = [...projects];
+    const concurrency = 4;
+
+    const worker = async () => {
+      while (queue.length > 0) {
+        const p = queue.shift();
+        if (!p) return;
+        try {
+          const secrets = await vaultScanProjectEnv(p.path);
+          if (secrets.length > 0) {
+            await vaultAddSecretsBatch(
+              p.path,
+              secrets.map((s) => ({ key: s.key, value: s.value, category: s.category })),
+            );
+          }
+        } catch (e) {
+          console.error(`Scan failed for ${p.name}:`, e);
         }
-      } catch (e) {
-        console.error(`Scan failed for ${p.name}:`, e);
       }
-    }
+    };
+
+    await Promise.all(Array.from({ length: Math.min(concurrency, projects.length) }, () => worker()));
+
     await loadVault();
     setScanning(false);
   };

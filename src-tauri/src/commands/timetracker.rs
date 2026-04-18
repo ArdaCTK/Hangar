@@ -44,11 +44,11 @@ fn parse_git_log_for_time(project_path: &str, days: u32) -> Vec<TimeEntry> {
         let gap = (window[1] - window[0]).num_minutes() as f64;
         let date = window[1].format("%Y-%m-%d").to_string();
 
-        if gap <= max_session_gap_minutes && gap > 0.0 {
-            *daily_minutes.entry(date).or_default() += gap;
-        } else {
-            *daily_minutes.entry(date).or_default() += min_commit_time;
-        }
+        if gap <= 0.0 { continue; }
+
+        // Clamp long gaps instead of dropping to a fixed minimum to reduce heavy undercounting.
+        let estimated = gap.max(min_commit_time).min(max_session_gap_minutes);
+        *daily_minutes.entry(date).or_default() += estimated;
     }
 
     if let Some(first) = timestamps.first() {

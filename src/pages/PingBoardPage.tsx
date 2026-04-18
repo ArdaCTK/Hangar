@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../store/useStore";
 import {
   pingGetAllMonitors, pingAddMonitor, pingRemoveMonitor, pingCheckNow, pingGetHistory,
@@ -24,14 +24,6 @@ const PingBoardPage: React.FC = () => {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
 
-  // Poll every 10 s and check each monitor against its own configured interval
-  useEffect(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (monitors.length > 0) {
-      intervalRef.current = window.setInterval(checkDueMonitors, 10_000);
-    }
-  }, [monitors.length]);
-
   const loadMonitors = async () => {
     setLoading(true);
     try {
@@ -56,33 +48,40 @@ const PingBoardPage: React.FC = () => {
    * Checks only the monitors that are due based on their individual interval_seconds.
    * Called every 10 s so the granularity is ±10 s — acceptable for a dev tool.
    */
-  const checkDueMonitors = async () => {
-    const current = useStore.getState().monitors;
+  const checkDueMonitors = useCallback(async () => {
     const now = Math.floor(Date.now() / 1000);
-    for (const mon of current) {
+    for (const mon of monitors) {
       if (!mon.is_active) continue;
       const lastChecked = mon.last_checked_at ?? 0;
       if (now - lastChecked < mon.interval_seconds) continue;
       try {
         const updated = await pingCheckNow(mon.id);
-        const latest = useStore.getState().monitors;
-        setMonitors(latest.map(p => p.id === updated.id ? updated : p));
+        setMonitors((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
       } catch { /* continue */ }
     }
-  };
+  }, [monitors, setMonitors]);
+
+  // Poll every 10 s and check each monitor against its own configured interval
+  useEffect(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (monitors.length > 0) {
+      intervalRef.current = window.setInterval(() => {
+        checkDueMonitors().catch(() => {});
+      }, 10_000);
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [monitors, checkDueMonitors]);
 
   const handleAdd = async () => {
     if (!addName || !addUrl) return;
     try {
       const m = await pingAddMonitor(addName, addUrl, addInterval, addMethod);
-      const current = useStore.getState().monitors;
-      setMonitors([...current, m]);
+      setMonitors((prev) => [...prev, m]);
       setShowAdd(false);
       setAddName(""); setAddUrl("https://"); setAddInterval(60); setAddMethod("GET");
       try {
         const updated = await pingCheckNow(m.id);
-        const latest = useStore.getState().monitors;
-        setMonitors(latest.map(p => p.id === updated.id ? updated : p));
+        setMonitors((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
       } catch { /* first check failed, will retry */ }
     } catch (e) {
       console.error("Failed to add monitor:", e);
@@ -91,8 +90,7 @@ const PingBoardPage: React.FC = () => {
 
   const handleRemove = async (id: string) => {
     await pingRemoveMonitor(id);
-    const current = useStore.getState().monitors;
-    setMonitors(current.filter(m => m.id !== id));
+    setMonitors((prev) => prev.filter((m) => m.id !== id));
     if (selectedMonitor === id) setSelectedMonitor(null);
   };
 
@@ -100,8 +98,7 @@ const PingBoardPage: React.FC = () => {
     setChecking(prev => ({ ...prev, [id]: true }));
     try {
       const updated = await pingCheckNow(id);
-      const current = useStore.getState().monitors;
-      setMonitors(current.map(m => m.id === updated.id ? updated : m));
+      setMonitors((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
     } catch (e) {
       console.error("Check failed:", e);
     }

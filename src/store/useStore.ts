@@ -74,7 +74,7 @@ interface AppStore {
 
   // ── PingBoard ──
   monitors: Monitor[];
-  setMonitors: (m: Monitor[]) => void;
+  setMonitors: (m: Monitor[] | ((prev: Monitor[]) => Monitor[])) => void;
   pingHistory: Record<string, PingRecord[]>;
   setPingHistory: (id: string, records: PingRecord[]) => void;
   pingLoading: boolean; setPingLoading: (b: boolean) => void;
@@ -138,7 +138,11 @@ export const useStore = create<AppStore>((set) => ({
   vaultLoading: false, setVaultLoading: (vaultLoading) => set({ vaultLoading }),
 
   // ── PingBoard ──
-  monitors: [], setMonitors: (monitors) => set({ monitors }),
+  monitors: [],
+  setMonitors: (monitors) =>
+    set((s) => ({
+      monitors: typeof monitors === "function" ? monitors(s.monitors) : monitors,
+    })),
   pingHistory: {},
   setPingHistory: (id, records) => set((s) => ({ pingHistory: { ...s.pingHistory, [id]: records } })),
   pingLoading: false, setPingLoading: (pingLoading) => set({ pingLoading }),

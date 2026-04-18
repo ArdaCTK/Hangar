@@ -174,17 +174,10 @@ pub async fn fetch_all_repos_issues(token: String, state: String) -> Result<Vec<
     if token.is_empty() { return Err("GitHub token required".to_string()); }
     let client = build_client(&token)?;
 
-    // First get user repos
-    let repos_url = "https://api.github.com/user/repos?per_page=100&affiliation=owner&sort=updated";
-    let repos_resp: serde_json::Value = client.get(repos_url).send().await
-        .map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
-
-    let repos = repos_resp.as_array().ok_or("Invalid repos response")?;
+    let repos = fetch_owned_repo_full_names(&client).await?;
     let mut all_issues: Vec<GitHubIssue> = Vec::new();
 
-    // Fetch issues from first 15 repos to avoid rate limiting
-    for repo in repos.iter().take(15) {
-        let full_name = repo["full_name"].as_str().unwrap_or("").to_string();
+    for full_name in repos {
         let url = format!(
             "https://api.github.com/repos/{}/issues?state={}&per_page=20&sort=updated&direction=desc",
             full_name, state
@@ -203,6 +196,44 @@ pub async fn fetch_all_repos_issues(token: String, state: String) -> Result<Vec<
     // Sort by updated_at desc
     all_issues.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
     Ok(all_issues)
+}
+
+async fn fetch_owned_repo_full_names(client: &reqwest::Client) -> Result<Vec<String>, String> {
+    let mut repos = Vec::new();
+    let mut page = 1u32;
+
+    loop {
+        let url = format!(
+            "https://api.github.com/user/repos?per_page=100&page={}&affiliation=owner&sort=updated",
+            page
+        );
+        let resp: serde_json::Value = client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?
+            .json()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let arr = match resp.as_array() {
+            Some(a) if !a.is_empty() => a,
+            _ => break,
+        };
+
+        for repo in arr {
+            if let Some(full_name) = repo.get("full_name").and_then(|v| v.as_str()) {
+                repos.push(full_name.to_string());
+            }
+        }
+
+        if arr.len() < 100 {
+            break;
+        }
+        page += 1;
+    }
+
+    Ok(repos)
 }
 
 #[tauri::command]

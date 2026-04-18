@@ -99,6 +99,11 @@ export const getGitLogForBranch = (path: string, branch: string, limit = 50): Pr
 export const vaultGetAll = (): Promise<VaultProject[]> => invoke("vault_get_all");
 export const vaultAddSecret = (projectPath: string, key: string, value: string, category: string): Promise<void> =>
   invoke("vault_add_secret", { projectPath, key, value, category });
+export const vaultAddSecretsBatch = (
+  projectPath: string,
+  secrets: { key: string; value: string; category: string }[],
+): Promise<number> =>
+  invoke("vault_add_secrets_batch", { projectPath, secrets });
 export const vaultDeleteSecret = (projectPath: string, key: string): Promise<void> =>
   invoke("vault_delete_secret", { projectPath, key });
 export const vaultExportEnv = (projectPath: string): Promise<string> =>

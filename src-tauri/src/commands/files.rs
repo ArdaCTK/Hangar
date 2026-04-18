@@ -1,7 +1,6 @@
 use crate::models::{FileNode, ProjectDetails, ProjectInfo};
 use crate::commands::{git as git_cmds, scanner, utils::silent_command};
 use std::path::Path;
-use walkdir::WalkDir;
 
 const SKIP_DIRS: &[&str] = &[
     ".git","node_modules","target",".svelte-kit","dist","build",
@@ -176,64 +175,6 @@ fn build_project_info_fast(project_path: &Path, name: &str) -> ProjectInfo {
         last_modified,
         file_count: 0, // already known from scan cache
         total_size: 0,
-        dep_count: git_cmds::count_dependencies_fast(project_path),
-    }
-}
-
-/// Full scan info for initial project listing (used by scanner.rs)
-pub fn build_full_project_info(project_path: &Path, name: &str) -> ProjectInfo {
-    use std::collections::HashMap;
-    const SKIP: &[&str] = &[".git","node_modules","target",".svelte-kit","dist","build",".next",".nuxt","__pycache__",".mypy_cache","venv",".venv","vendor",".cargo","Pods","DerivedData"];
-    let mut lang_counts: HashMap<&'static str, u32> = HashMap::new();
-    let mut file_count = 0u64;
-    let mut total_size = 0u64;
-    let mut last_modified = 0i64;
-
-    for entry in WalkDir::new(project_path).follow_links(false).into_iter().flatten() {
-        if !entry.file_type().is_file() { continue; }
-        file_count += 1;
-        if let Ok(meta) = entry.metadata() {
-            total_size += meta.len();
-            if let Ok(mtime) = meta.modified() {
-                if let Ok(dur) = mtime.duration_since(std::time::UNIX_EPOCH) {
-                    let ts = dur.as_secs() as i64;
-                    if ts > last_modified { last_modified = ts; }
-                }
-            }
-        }
-    }
-
-    for entry in WalkDir::new(project_path).follow_links(false).into_iter()
-        .filter_entry(|e| {
-            if e.file_type().is_dir() { let n = e.file_name().to_string_lossy(); return !SKIP.iter().any(|s| *s == n.as_ref()); }
-            true
-        }).flatten()
-    {
-        if !entry.file_type().is_file() { continue; }
-        if let Some(ext) = entry.path().extension() {
-            let ext_str = ext.to_string_lossy().to_lowercase();
-            if let Some(lang) = scanner::ext_to_lang_pub(&ext_str) {
-                *lang_counts.entry(lang).or_insert(0) += 1;
-            }
-        }
-    }
-
-    let mut lang_vec: Vec<(&str, u32)> = lang_counts.into_iter().collect();
-    lang_vec.sort_by(|a, b| b.1.cmp(&a.1));
-    let languages: Vec<String> = lang_vec.iter().take(8).map(|(l, _)| l.to_string()).collect();
-    let frameworks = scanner::detect_frameworks_pub(project_path);
-    let project_type = scanner::infer_type_pub(project_path, &languages, &frameworks);
-    let has_git = project_path.join(".git").exists();
-    let remote_url = if has_git { scanner::git_remote_pub(project_path) } else { None };
-    let (github_owner, github_repo) = remote_url.as_deref()
-        .and_then(scanner::parse_github_pub)
-        .map(|(o, r)| (Some(o), Some(r)))
-        .unwrap_or((None, None));
-    let dep_count = git_cmds::count_dependencies_fast(project_path);
-
-    ProjectInfo {
-        name: name.to_string(), path: project_path.to_string_lossy().to_string(),
-        has_git, remote_url, github_owner, github_repo,
-        languages, frameworks, project_type, last_modified, file_count, total_size, dep_count,
+        dep_count: git_cmds::collect_dependencies(project_path).len() as u32,
     }
 }

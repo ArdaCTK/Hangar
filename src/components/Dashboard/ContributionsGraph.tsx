@@ -23,14 +23,18 @@ function buildGrid(data: { date: string; count: number; projects: string[] }[]) 
   start.setDate(start.getDate() - 364);
   start.setDate(start.getDate() - start.getDay());
 
-  let cursor = new Date(start);
-  while (cursor <= today) {
+  let cursorTs = start.getTime();
+  const todayTs = today.getTime();
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  while (cursorTs <= todayTs) {
     const week: typeof grid[0] = [];
     for (let d = 0; d < 7; d++) {
-      const iso = cursor.toISOString().slice(0, 10);
+      const cursor = new Date(cursorTs);
+      const iso = `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, "0")}-${String(cursor.getUTCDate()).padStart(2, "0")}`;
       const entry = dateMap.get(iso);
       week.push({ date: iso, count: entry?.count ?? 0, projects: entry?.projects ?? [], dayOfWeek: d });
-      cursor.setDate(cursor.getDate() + 1);
+      cursorTs += dayMs;
     }
     grid.push(week);
   }
@@ -40,21 +44,28 @@ function buildGrid(data: { date: string; count: number; projects: string[] }[]) 
 const ContributionsGraph: React.FC = () => {
   const { projects, activityData, setActivityData, activityLoading, setActivityLoading } = useStore();
 
-  // Use a ref to ensure we only fetch once per mount, regardless of state changes
-  const fetchedRef = useRef(false);
+  const lastFetchKeyRef = useRef<string>("");
+  const gitPaths = useMemo(
+    () => projects.filter((p) => p.has_git).map((p) => p.path).sort(),
+    [projects],
+  );
+  const fetchKey = gitPaths.join("|");
 
   useEffect(() => {
-    if (fetchedRef.current || activityData.length > 0) return;
-    const paths = projects.filter((p) => p.has_git).map((p) => p.path);
-    if (paths.length === 0) return;
+    if (!fetchKey) {
+      setActivityData([]);
+      lastFetchKeyRef.current = "";
+      return;
+    }
+    if (lastFetchKeyRef.current === fetchKey) return;
 
-    fetchedRef.current = true;
+    lastFetchKeyRef.current = fetchKey;
     setActivityLoading(true);
-    getActivityData(paths)
+    getActivityData(gitPaths)
       .then(setActivityData)
       .catch(console.error)
       .finally(() => setActivityLoading(false));
-  }, [projects, activityData.length]);
+  }, [fetchKey, gitPaths, setActivityData, setActivityLoading]);
 
   const { grid } = useMemo(() => buildGrid(activityData), [activityData]);
 
