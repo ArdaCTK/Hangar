@@ -35,6 +35,7 @@ jspm_packages/
 web_modules/
 *.tsbuildinfo
 .npm
+.npm-cache/
 .eslintcache
 .stylelintcache
 .rpt2_cache/

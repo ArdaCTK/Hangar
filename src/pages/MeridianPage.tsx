@@ -23,8 +23,10 @@ const MeridianPage: React.FC = () => {
   const [exportHourlyRate, setExportHourlyRate] = useState(50);
   const [exporting, setExporting] = useState(false);
   const [exportResult, setExportResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const projectPaths = useMemo(() => projects.map(p => p.path), [projects]);
+  const errorMessage = (e: unknown) => e instanceof Error ? e.message : String(e);
 
   useEffect(() => {
     if (projectPaths.length === 0) return;
@@ -33,32 +35,41 @@ const MeridianPage: React.FC = () => {
   }, [view, projectPaths.length, selectedMonth.year, selectedMonth.month]);
 
   const loadWeekly = async () => {
+    setError(null);
     setMeridianLoading(true);
     try {
       const r = await timeGetWeeklyReport(projectPaths);
       setWeekly(r);
-    } catch { }
+    } catch (e) {
+      setError(errorMessage(e));
+    }
     setMeridianLoading(false);
   };
 
   const loadMonthly = async () => {
+    setError(null);
     setMeridianLoading(true);
     try {
       const r = await timeGetMonthlyReport(projectPaths, selectedMonth.year, selectedMonth.month);
       setMonthly(r);
-    } catch { }
+    } catch (e) {
+      setError(errorMessage(e));
+    }
     setMeridianLoading(false);
   };
 
   const handleExport = async () => {
     setExporting(true);
+    setError(null);
     const now = new Date();
     const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
     const endDate = now.toISOString().split("T")[0];
     try {
       const csv = await timeExportCsv(projectPaths, startDate, endDate, exportHourlyRate);
       setExportResult(csv);
-    } catch { }
+    } catch (e) {
+      setError(errorMessage(e));
+    }
     setExporting(false);
   };
 
@@ -109,6 +120,7 @@ const MeridianPage: React.FC = () => {
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 28px" }}>
+        {error && <div className="error-banner" style={{ marginBottom: 12 }}>Meridian error: {error}</div>}
         {meridianLoading && <div className="loading-state"><div className="spinner" /><span>Analyzing commits…</span></div>}
 
         {!meridianLoading && projectPaths.length === 0 && (

@@ -1,13 +1,14 @@
 use crate::models::{TimeEntry, WeeklyReport, MonthlyReport, ProjectTimeSummary, DailyTime, WeeklyTime};
+use crate::commands::utils::silent_command;
 use std::collections::HashMap;
 use std::path::Path;
-use std::process::Command;
 use chrono::Datelike;
 
 /// Parse git log output and extract time entries based on commit patterns.
 fn parse_git_log_for_time(project_path: &str, days: u32) -> Vec<TimeEntry> {
     let since = format!("--since={} days ago", days);
-    let output = Command::new("git")
+    let mut cmd = silent_command("git");
+    let output = cmd
         .args(["log", "--format=%aI", "--all", &since])
         .current_dir(project_path)
         .output();

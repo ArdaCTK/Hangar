@@ -19,15 +19,18 @@ const GitHubHubPage: React.FC = () => {
   const [commentBody, setCommentBody] = useState("");
   const [posting, setPosting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [ghError, setGhError] = useState<string | null>(null);
 
   const token = settings?.github_token ?? "";
+  const errorMessage = (e: unknown) => e instanceof Error ? e.message : String(e);
 
   useEffect(() => {
     if (!token) return;
+    setGhError(null);
     setGhHubLoading(true);
     fetchAllReposIssues(token, stateFilter === "all" ? "all" : stateFilter)
       .then(setGhIssues)
-      .catch(() => { })
+      .catch((e) => { setGhError(errorMessage(e)); })
       .finally(() => setGhHubLoading(false));
   }, [token, stateFilter]);
 
@@ -50,23 +53,29 @@ const GitHubHubPage: React.FC = () => {
     setSelectedIssue(issue);
     setComments([]);
     setCommentsLoading(true);
+    setGhError(null);
     const [owner, repo] = issue.repo_full_name.split("/");
     try {
       const c = await fetchGitHubComments(owner, repo, issue.number, token);
       setComments(c);
-    } catch { }
+    } catch (e) {
+      setGhError(errorMessage(e));
+    }
     setCommentsLoading(false);
   };
 
   const handlePostComment = async () => {
     if (!selectedIssue || !commentBody.trim()) return;
     setPosting(true);
+    setGhError(null);
     const [owner, repo] = selectedIssue.repo_full_name.split("/");
     try {
       const c = await postGitHubComment(owner, repo, selectedIssue.number, commentBody, token);
       setComments(prev => [...prev, c]);
       setCommentBody("");
-    } catch { }
+    } catch (e) {
+      setGhError(errorMessage(e));
+    }
     setPosting(false);
   };
 
@@ -125,6 +134,11 @@ const GitHubHubPage: React.FC = () => {
             value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
         </div>
       </div>
+      {ghError && (
+        <div className="error-banner" style={{ margin: "8px 28px 0 28px" }}>
+          GitHub Hub error: {ghError}
+        </div>
+      )}
 
       <div className="ghub-content">
         {/* Issue List */}
