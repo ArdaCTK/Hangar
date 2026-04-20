@@ -12,14 +12,14 @@ import type { FileNode } from "../types";
 type Tab = "overview" | "git" | "files" | "deps" | "docs" | "apis" | "terminal" | "notes";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "overview",  label: "Overview"    },
-  { id: "git",       label: "Git / GitHub"},
-  { id: "files",     label: "Files"       },
-  { id: "deps",      label: "Dependencies"},
-  { id: "docs",      label: "Docs"        },
-  { id: "apis",      label: "APIs"        },
-  { id: "terminal",  label: "Terminal"    },
-  { id: "notes",     label: "Notes"       },
+  { id: "overview",  label: "Overview"     },
+  { id: "git",       label: "Git / GitHub" },
+  { id: "files",     label: "Files"        },
+  { id: "deps",      label: "Dependencies" },
+  { id: "docs",      label: "Docs"         },
+  { id: "apis",      label: "APIs"         },
+  { id: "terminal",  label: "Terminal"     },
+  { id: "notes",     label: "Notes"        },
 ];
 
 const ProjectPage: React.FC = () => {
@@ -27,7 +27,6 @@ const ProjectPage: React.FC = () => {
     selectedProject, setSelectedProject,
     detailsCache, setDetails, loadingDetails, setLoadingDetails,
     notes,
-    // Reactive selector — keeps component in sync when cache updates
     githubCache,
   } = useStore();
 
@@ -36,18 +35,32 @@ const ProjectPage: React.FC = () => {
   const [fileTreeLoading, setFTL] = useState(false);
   const [fileTreeLoadedFor, setFileTreeLoadedFor] = useState<string | null>(null);
   const [fileTreeError, setFileTreeError] = useState<string | null>(null);
+  // FIX: Retry sayacı — error state'inden sonra yeniden denemeye izin verir.
+  // Önceki implementasyonda fileTreeError guard'da yer aldığından retry imkânsızdı.
+  const [fileTreeRetry, setFileTreeRetry] = useState(0);
   const [error, setError]         = useState<string | null>(null);
 
   const details    = selectedProject ? detailsCache[selectedProject] : null;
   const isLoading  = selectedProject ? (loadingDetails[selectedProject] ?? false) : false;
   const projectNote = selectedProject ? notes[selectedProject] : null;
 
+  // Proje değiştiğinde file tree state'ini sıfırla
   useEffect(() => {
     setTab("overview");
     setFileTree([]);
     setFileTreeLoadedFor(null);
     setFileTreeError(null);
+    setFileTreeRetry(0);
   }, [selectedProject]);
+
+  // FIX: Tab "files"'a geçildiğinde error state sıfırlanır; böylece
+  // tab değiştirip geri dönmek otomatik retry görevi görür.
+  useEffect(() => {
+    if (tab === "files" && fileTreeError) {
+      setFileTreeError(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   useEffect(() => {
     if (!selectedProject || details || isLoading) return;
@@ -60,8 +73,15 @@ const ProjectPage: React.FC = () => {
   }, [selectedProject]);
 
   useEffect(() => {
-    if (tab !== "files" || !selectedProject || fileTreeLoading || fileTreeError) return;
-    if (fileTreeLoadedFor === selectedProject) return;
+    // FIX: fileTreeError artık guard'da değil — retry mümkün.
+    // Yalnızca şu koşullarda yükleme atlanır:
+    //   1. "files" tabı aktif değil
+    //   2. selectedProject yok
+    //   3. Zaten yükleniyor
+    //   4. Bu proje için zaten başarıyla yüklenmiş (ve hata yok)
+    if (tab !== "files" || !selectedProject || fileTreeLoading) return;
+    if (fileTreeLoadedFor === selectedProject && fileTree.length > 0) return;
+
     setFTL(true);
     setFileTreeError(null);
     getFileTree(selectedProject)
@@ -71,10 +91,10 @@ const ProjectPage: React.FC = () => {
       })
       .catch((e) => {
         setFileTreeError(String(e));
-        console.error(e);
       })
       .finally(() => setFTL(false));
-  }, [tab, selectedProject, fileTreeLoading, fileTreeError, fileTreeLoadedFor]);
+  // fileTreeRetry bağımlılığı: kullanıcı retry butonuna basınca yeniden tetiklenir.
+  }, [tab, selectedProject, fileTreeLoading, fileTreeLoadedFor, fileTree.length, fileTreeRetry]);
 
   if (!selectedProject) return (
     <div className="empty-state">
@@ -207,14 +227,26 @@ const ProjectPage: React.FC = () => {
 
         {tab === "files" && (
           <>
+            {/* FIX: Hata durumunda retry butonu gösteriliyor */}
             {fileTreeError && (
-              <div className="error-banner" style={{ marginBottom: 12 }}>
-                Failed to load file tree: {fileTreeError}
+              <div className="error-banner" style={{ marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span>Failed to load file tree: {fileTreeError}</span>
+                <button
+                  className="btn btn-ghost"
+                  style={{ fontSize: 11, marginLeft: 12, flexShrink: 0 }}
+                  onClick={() => {
+                    setFileTreeError(null);
+                    setFileTreeRetry((r) => r + 1);
+                  }}
+                >
+                  ↺ Retry
+                </button>
               </div>
             )}
             <FileTree nodes={fileTree} loading={fileTreeLoading} />
           </>
         )}
+
         {tab === "deps"     && <Dependencies dependencies={details.dependencies} />}
         {tab === "docs"     && <ReadmeViewer docs={details.docs} projectPath={selectedProject} />}
 

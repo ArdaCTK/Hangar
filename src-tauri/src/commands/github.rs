@@ -2,6 +2,10 @@ use crate::models::{GitCommit, GitHubData, GitHubIssue, GitHubLabel, GitHubComme
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, USER_AGENT};
 use std::time::Duration;
 
+/// GitHub Hub için maksimum repo sayısı.
+/// 50 repo × 20 issue = 1000 istek; rate limit güvenli aralığında kalır.
+const MAX_REPOS_FOR_HUB: usize = 50;
+
 fn build_client(token: &str) -> Result<reqwest::Client, String> {
     let mut headers = HeaderMap::new();
     headers.insert(ACCEPT, HeaderValue::from_static("application/vnd.github+json"));
@@ -16,6 +20,42 @@ fn build_client(token: &str) -> Result<reqwest::Client, String> {
         .timeout(Duration::from_secs(15))
         .connect_timeout(Duration::from_secs(8))
         .build().map_err(|e| e.to_string())
+}
+
+/// Yanıt durumunu inceler; rate limit aşıldıysa açıklayıcı hata döner.
+/// `resp` referans aldığından `.json()` ile tüketilebilir.
+fn check_rate_limit(resp: &reqwest::Response) -> Result<(), String> {
+    let status = resp.status().as_u16();
+    if status == 429 || status == 403 {
+        let remaining = resp
+            .headers()
+            .get("x-ratelimit-remaining")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or(1);
+
+        if remaining == 0 {
+            let secs_left = resp
+                .headers()
+                .get("x-ratelimit-reset")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.parse::<u64>().ok())
+                .and_then(|reset_ts| {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .ok()?
+                        .as_secs();
+                    Some(reset_ts.saturating_sub(now))
+                })
+                .unwrap_or(60);
+
+            return Err(format!(
+                "GitHub API rate limit aşıldı — {secs_left} saniye içinde sıfırlanır. \
+                 Settings'ten bir Personal Access Token ekleyin (5 000 istek/saat)."
+            ));
+        }
+    }
+    Ok(())
 }
 
 async fn fetch_readme_content(client: &reqwest::Client, owner: &str, repo: &str, default_branch: &str) -> Option<String> {
@@ -38,15 +78,19 @@ pub async fn fetch_github(owner: String, repo: String, token: String) -> Result<
     let client = build_client(&token)?;
     let base = format!("https://api.github.com/repos/{}/{}", owner, repo);
 
-    let repo_resp: serde_json::Value = client.get(&base).send().await
-        .map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
+    // FIX: rate limit kontrolü eklendi
+    let repo_raw = client.get(&base).send().await.map_err(|e| e.to_string())?;
+    check_rate_limit(&repo_raw)?;
+    let repo_resp: serde_json::Value = repo_raw.json().await.map_err(|e| e.to_string())?;
 
     if let Some(msg) = repo_resp.get("message").and_then(|m| m.as_str()) {
         return Err(format!("GitHub API: {}", msg));
     }
 
-    let commits_resp: serde_json::Value = client.get(format!("{}/commits?per_page=30", base))
-        .send().await.map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
+    let commits_raw = client.get(format!("{}/commits?per_page=30", base))
+        .send().await.map_err(|e| e.to_string())?;
+    check_rate_limit(&commits_raw)?;
+    let commits_resp: serde_json::Value = commits_raw.json().await.map_err(|e| e.to_string())?;
 
     let commits: Vec<GitCommit> = commits_resp.as_array().unwrap_or(&vec![]).iter().map(|c| {
         let hash = c["sha"].as_str().unwrap_or("").to_string();
@@ -57,24 +101,29 @@ pub async fn fetch_github(owner: String, repo: String, token: String) -> Result<
         GitCommit { hash, short_hash, message, author, date }
     }).collect();
 
-    let branches_resp: serde_json::Value = client.get(format!("{}/branches?per_page=50", base))
-        .send().await.map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
+    let branches_raw = client.get(format!("{}/branches?per_page=50", base))
+        .send().await.map_err(|e| e.to_string())?;
+    check_rate_limit(&branches_raw)?;
+    let branches_resp: serde_json::Value = branches_raw.json().await.map_err(|e| e.to_string())?;
     let branches: Vec<String> = branches_resp.as_array().unwrap_or(&vec![])
         .iter().filter_map(|b| b["name"].as_str().map(|s| s.to_string())).collect();
 
-    let prs_resp: serde_json::Value = client.get(format!("{}/pulls?state=open&per_page=1", base))
-        .send().await.map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
+    let prs_raw = client.get(format!("{}/pulls?state=open&per_page=1", base))
+        .send().await.map_err(|e| e.to_string())?;
+    check_rate_limit(&prs_raw)?;
+    let prs_resp: serde_json::Value = prs_raw.json().await.map_err(|e| e.to_string())?;
     let open_prs = prs_resp.as_array().map(|a| a.len()).unwrap_or(0) as u64;
 
-    let topics_resp: serde_json::Value = client.get(format!("{}/topics", base))
-        .send().await.map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
+    let topics_raw = client.get(format!("{}/topics", base))
+        .send().await.map_err(|e| e.to_string())?;
+    check_rate_limit(&topics_raw)?;
+    let topics_resp: serde_json::Value = topics_raw.json().await.map_err(|e| e.to_string())?;
     let topics: Vec<String> = topics_resp["names"].as_array().unwrap_or(&vec![])
         .iter().filter_map(|t| t.as_str().map(|s| s.to_string())).collect();
 
     let default_branch = repo_resp["default_branch"].as_str().unwrap_or("main").to_string();
     let is_private = repo_resp["private"].as_bool().unwrap_or(false);
 
-    // Fetch README
     let readme = if !is_private || !token.is_empty() {
         fetch_readme_content(&client, &owner, &repo, &default_branch).await
     } else {
@@ -108,9 +157,11 @@ pub async fn fetch_github_user_repos(token: String) -> Result<Vec<GithubRepoSumm
 
     loop {
         let url = format!("https://api.github.com/user/repos?per_page=100&page={}&affiliation=owner&sort=updated", page);
-        let resp: serde_json::Value = client.get(&url).send().await
-            .map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
-        let arr = match resp.as_array() {
+        let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
+        check_rate_limit(&resp)?;
+        let val: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+
+        let arr = match val.as_array() {
             Some(a) if !a.is_empty() => a.clone(),
             _ => break,
         };
@@ -131,7 +182,7 @@ pub async fn fetch_github_user_repos(token: String) -> Result<Vec<GithubRepoSumm
         }
         if arr.len() < 100 { break; }
         page += 1;
-        if page > 3 { break; }  // limit to 300 repos max for perf
+        if page > 3 { break; } // 300 repo limit
     }
     Ok(all)
 }
@@ -160,63 +211,70 @@ pub async fn fetch_github_issues(owner: String, repo: String, token: String, sta
         "https://api.github.com/repos/{}/{}/issues?state={}&per_page=30&page={}&sort=updated&direction=desc",
         owner, repo, state, page
     );
-    let resp: serde_json::Value = client.get(&url).send().await
-        .map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
+    let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
+    check_rate_limit(&resp)?;
+    let val: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
 
     let full_name = format!("{}/{}", owner, repo);
-    let arr = resp.as_array().ok_or("Invalid response")?;
-    let issues: Vec<GitHubIssue> = arr.iter().map(|i| parse_issue(i, &full_name)).collect();
-    Ok(issues)
+    let arr = val.as_array().ok_or("Invalid response")?;
+    Ok(arr.iter().map(|i| parse_issue(i, &full_name)).collect())
 }
 
+/// GitHub Hub için tüm repolardan issue/PR getirir.
+/// FIX: MAX_REPOS_FOR_HUB (50) limiti eklendi; önceki sürümde sayfa sınırı yoktu.
+/// Repolar en son güncellenene göre sıralandığından en aktif olanlar önce gelir.
 #[tauri::command]
 pub async fn fetch_all_repos_issues(token: String, state: String) -> Result<Vec<GitHubIssue>, String> {
     if token.is_empty() { return Err("GitHub token required".to_string()); }
     let client = build_client(&token)?;
 
-    let repos = fetch_owned_repo_full_names(&client).await?;
+    let all_repos = fetch_owned_repo_full_names(&client).await?;
+    // FIX: En fazla MAX_REPOS_FOR_HUB repo taranır; sessiz truncation önlenir.
+    let repos: Vec<String> = all_repos.into_iter().take(MAX_REPOS_FOR_HUB).collect();
+
     let mut all_issues: Vec<GitHubIssue> = Vec::new();
 
-    for full_name in repos {
+    for full_name in &repos {
         let url = format!(
             "https://api.github.com/repos/{}/issues?state={}&per_page=20&sort=updated&direction=desc",
             full_name, state
         );
-        if let Ok(resp) = client.get(&url).send().await {
-            if let Ok(val) = resp.json::<serde_json::Value>().await {
-                if let Some(arr) = val.as_array() {
-                    for issue in arr {
-                        all_issues.push(parse_issue(issue, &full_name));
-                    }
+        let resp = match client.get(&url).send().await {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+        // rate limit hatasını erken yakala — döngüyü kır
+        check_rate_limit(&resp)?;
+        if let Ok(val) = resp.json::<serde_json::Value>().await {
+            if let Some(arr) = val.as_array() {
+                for issue in arr {
+                    all_issues.push(parse_issue(issue, full_name));
                 }
             }
         }
     }
 
-    // Sort by updated_at desc
     all_issues.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
     Ok(all_issues)
 }
 
+/// FIX: Sonsuz sayfalama limiti kaldırıldı; max 5 sayfa (500 repo) ile sınırlandı.
+/// Rate limit hatası artık propagate ediliyor.
 async fn fetch_owned_repo_full_names(client: &reqwest::Client) -> Result<Vec<String>, String> {
     let mut repos = Vec::new();
     let mut page = 1u32;
+    const MAX_PAGES: u32 = 5; // 500 repo üst sınırı
 
     loop {
         let url = format!(
             "https://api.github.com/user/repos?per_page=100&page={}&affiliation=owner&sort=updated",
             page
         );
-        let resp: serde_json::Value = client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| e.to_string())?
-            .json()
-            .await
-            .map_err(|e| e.to_string())?;
+        let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
+        check_rate_limit(&resp)?;
+        let val: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
 
-        let arr = match resp.as_array() {
+        let arr = match val.as_array() {
             Some(a) if !a.is_empty() => a,
             _ => break,
         };
@@ -227,10 +285,9 @@ async fn fetch_owned_repo_full_names(client: &reqwest::Client) -> Result<Vec<Str
             }
         }
 
-        if arr.len() < 100 {
-            break;
-        }
+        if arr.len() < 100 { break; }
         page += 1;
+        if page > MAX_PAGES { break; }
     }
 
     Ok(repos)
@@ -243,21 +300,19 @@ pub async fn fetch_github_comments(owner: String, repo: String, issue_number: u6
         "https://api.github.com/repos/{}/{}/issues/{}/comments?per_page=50",
         owner, repo, issue_number
     );
-    let resp: serde_json::Value = client.get(&url).send().await
-        .map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
+    let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
+    check_rate_limit(&resp)?;
+    let val: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
 
-    let arr = resp.as_array().ok_or("Invalid response")?;
-    let comments: Vec<GitHubComment> = arr.iter().map(|c| {
-        GitHubComment {
-            id: c["id"].as_u64().unwrap_or(0),
-            body: c["body"].as_str().unwrap_or("").to_string(),
-            user_login: c["user"]["login"].as_str().unwrap_or("").to_string(),
-            user_avatar: c["user"]["avatar_url"].as_str().unwrap_or("").to_string(),
-            created_at: c["created_at"].as_str().unwrap_or("").to_string(),
-            updated_at: c["updated_at"].as_str().unwrap_or("").to_string(),
-        }
-    }).collect();
-    Ok(comments)
+    let arr = val.as_array().ok_or("Invalid response")?;
+    Ok(arr.iter().map(|c| GitHubComment {
+        id: c["id"].as_u64().unwrap_or(0),
+        body: c["body"].as_str().unwrap_or("").to_string(),
+        user_login: c["user"]["login"].as_str().unwrap_or("").to_string(),
+        user_avatar: c["user"]["avatar_url"].as_str().unwrap_or("").to_string(),
+        created_at: c["created_at"].as_str().unwrap_or("").to_string(),
+        updated_at: c["updated_at"].as_str().unwrap_or("").to_string(),
+    }).collect())
 }
 
 #[tauri::command]
@@ -269,17 +324,17 @@ pub async fn post_github_comment(owner: String, repo: String, issue_number: u64,
         owner, repo, issue_number
     );
     let payload = serde_json::json!({ "body": body });
-    let resp: serde_json::Value = client.post(&url).json(&payload).send().await
-        .map_err(|e| e.to_string())?
-        .json().await.map_err(|e| e.to_string())?;
+    let resp = client.post(&url).json(&payload).send().await.map_err(|e| e.to_string())?;
+    check_rate_limit(&resp)?;
+    let val: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
 
     Ok(GitHubComment {
-        id: resp["id"].as_u64().unwrap_or(0),
-        body: resp["body"].as_str().unwrap_or("").to_string(),
-        user_login: resp["user"]["login"].as_str().unwrap_or("").to_string(),
-        user_avatar: resp["user"]["avatar_url"].as_str().unwrap_or("").to_string(),
-        created_at: resp["created_at"].as_str().unwrap_or("").to_string(),
-        updated_at: resp["updated_at"].as_str().unwrap_or("").to_string(),
+        id: val["id"].as_u64().unwrap_or(0),
+        body: val["body"].as_str().unwrap_or("").to_string(),
+        user_login: val["user"]["login"].as_str().unwrap_or("").to_string(),
+        user_avatar: val["user"]["avatar_url"].as_str().unwrap_or("").to_string(),
+        created_at: val["created_at"].as_str().unwrap_or("").to_string(),
+        updated_at: val["updated_at"].as_str().unwrap_or("").to_string(),
     })
 }
 

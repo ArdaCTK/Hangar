@@ -1,4 +1,5 @@
 use crate::commands::crypto::{decrypt_with_machine_binding, encrypt_with_machine_binding};
+use crate::commands::utils::get_machine_hostname;
 use crate::models::{VaultProject, VaultSecret};
 use aes_gcm::{
     aead::{Aead, KeyInit},
@@ -325,7 +326,9 @@ fn decrypt_v1_legacy(encoded: &str) -> Result<String, String> {
 }
 
 fn derive_v1_legacy_key() -> [u8; 32] {
-    let hostname = get_hostname();
+    // FIX: get_machine_hostname() artık sysinfo OS API'lerini kullanıyor;
+    // önceki Command::new("hostname") subprocess PATH manipülasyonuna açıktı.
+    let hostname = get_machine_hostname();
     let username = std::env::var("USERNAME")
         .or_else(|_| std::env::var("USER"))
         .unwrap_or_else(|_| "hangar-user".to_string());
@@ -336,20 +339,4 @@ fn derive_v1_legacy_key() -> [u8; 32] {
     hasher.update(b":");
     hasher.update(username.as_bytes());
     hasher.finalize().into()
-}
-
-#[cfg(target_os = "windows")]
-fn get_hostname() -> String {
-    std::env::var("COMPUTERNAME").unwrap_or_else(|_| "unknown-host".to_string())
-}
-
-#[cfg(not(target_os = "windows"))]
-fn get_hostname() -> String {
-    std::process::Command::new("hostname")
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .unwrap_or_else(|| "unknown-host".to_string())
-        .trim()
-        .to_string()
 }

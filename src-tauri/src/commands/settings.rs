@@ -44,9 +44,14 @@ pub fn load_settings() -> Settings {
             github_token: token,
         };
 
-        // Migrate legacy plaintext tokens into encrypted storage.
+        // FIX: Plaintext token migration — başarısız olursa hata artık loglanıyor.
+        // Önceki `let _ = ...` sessizce yutuyordu; disk dolu veya izin hatalarında
+        // token her açılışta yeniden plaintext okunmaya devam ediyordu.
         if stored.github_token.is_some() {
-            let _ = save_settings(settings.clone());
+            if let Err(e) = save_settings(settings.clone()) {
+                eprintln!("[Hangar] Warning: GitHub token encrypted storage migration failed: {e}. \
+                           Token will be re-migrated on next launch.");
+            }
         }
 
         return settings;
@@ -55,7 +60,9 @@ pub fn load_settings() -> Settings {
     // Legacy shape fallback.
     let settings = serde_json::from_str::<Settings>(&raw).unwrap_or_default();
     if settings.github_token.is_some() {
-        let _ = save_settings(settings.clone());
+        if let Err(e) = save_settings(settings.clone()) {
+            eprintln!("[Hangar] Warning: Legacy settings migration failed: {e}.");
+        }
     }
     settings
 }

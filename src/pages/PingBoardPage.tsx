@@ -12,16 +12,26 @@ const PingBoardPage: React.FC = () => {
   const [selectedMonitor, setSelectedMonitor] = useState<string | null>(null);
   const [checking, setChecking] = useState<Record<string, boolean>>({});
 
-  const [addName, setAddName]       = useState("");
-  const [addUrl, setAddUrl]         = useState("https://");
+  const [addName, setAddName]         = useState("");
+  const [addUrl, setAddUrl]           = useState("https://");
   const [addInterval, setAddInterval] = useState(60);
-  const [addMethod, setAddMethod]   = useState("GET");
+  const [addMethod, setAddMethod]     = useState("GET");
 
   const intervalRef = useRef<number | null>(null);
 
+  // FIX: monitors ref — checkDueMonitors'ın monitors'a doğrudan bağımlı olmasını engeller.
+  // Önceki implementasyonda her ping sonrası monitors state güncelleniyor, bu da
+  // useEffect bağımlılığı yüzünden interval'ın her seferinde yeniden kurulmasına yol açıyordu.
+  const monitorsRef = useRef<Monitor[]>([]);
+  useEffect(() => {
+    monitorsRef.current = monitors;
+  }, [monitors]);
+
   useEffect(() => {
     loadMonitors();
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, []);
 
   const loadMonitors = async () => {
@@ -33,7 +43,7 @@ const PingBoardPage: React.FC = () => {
         if (mon.is_active) {
           try {
             const updated = await pingCheckNow(mon.id);
-            m = m.map(p => p.id === updated.id ? updated : p);
+            m = m.map((p) => (p.id === updated.id ? updated : p));
             setMonitors(m);
           } catch { /* continue */ }
         }
@@ -44,13 +54,12 @@ const PingBoardPage: React.FC = () => {
     setLoading(false);
   };
 
-  /**
-   * Checks only the monitors that are due based on their individual interval_seconds.
-   * Called every 10 s so the granularity is ±10 s — acceptable for a dev tool.
-   */
+  // FIX: monitorsRef kullanarak stale closure'ı önler.
+  // checkDueMonitors artık monitors'a bağımlı değil → interval bir kez kurulur,
+  // her ping sonrası yeniden oluşturulmaz.
   const checkDueMonitors = useCallback(async () => {
     const now = Math.floor(Date.now() / 1000);
-    for (const mon of monitors) {
+    for (const mon of monitorsRef.current) {
       if (!mon.is_active) continue;
       const lastChecked = mon.last_checked_at ?? 0;
       if (now - lastChecked < mon.interval_seconds) continue;
@@ -59,18 +68,19 @@ const PingBoardPage: React.FC = () => {
         setMonitors((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
       } catch { /* continue */ }
     }
-  }, [monitors, setMonitors]);
+  }, []); // Bağımlılık yok — monitorsRef her zaman güncel değeri tutar
 
-  // Poll every 10 s and check each monitor against its own configured interval
+  // FIX: checkDueMonitors artık stabil (boş bağımlılık listesi) → bu effect
+  // sadece bir kez çalışır ve interval hiçbir zaman gereksiz yere yeniden kurulmaz.
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
-    if (monitors.length > 0) {
-      intervalRef.current = window.setInterval(() => {
-        checkDueMonitors().catch(() => {});
-      }, 10_000);
-    }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [monitors, checkDueMonitors]);
+    intervalRef.current = window.setInterval(() => {
+      checkDueMonitors().catch(() => {});
+    }, 10_000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [checkDueMonitors]);
 
   const handleAdd = async () => {
     if (!addName || !addUrl) return;
@@ -95,14 +105,14 @@ const PingBoardPage: React.FC = () => {
   };
 
   const handleCheck = async (id: string) => {
-    setChecking(prev => ({ ...prev, [id]: true }));
+    setChecking((prev) => ({ ...prev, [id]: true }));
     try {
       const updated = await pingCheckNow(id);
       setMonitors((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
     } catch (e) {
       console.error("Check failed:", e);
     }
-    setChecking(prev => ({ ...prev, [id]: false }));
+    setChecking((prev) => ({ ...prev, [id]: false }));
   };
 
   const handleSelectMonitor = async (id: string) => {
@@ -123,10 +133,10 @@ const PingBoardPage: React.FC = () => {
   };
 
   const selectedHistory = selectedMonitor ? (pingHistory[selectedMonitor] ?? []) : [];
-  const selectedMon = monitors.find(m => m.id === selectedMonitor);
+  const selectedMon = monitors.find((m) => m.id === selectedMonitor);
 
   const uptimeBarData = (history: PingRecord[]) =>
-    history.slice(-30).map(r => ({
+    history.slice(-30).map((r) => ({
       status: r.status, ms: r.response_ms,
       time: new Date(r.timestamp * 1000).toLocaleTimeString(),
     }));
@@ -139,7 +149,7 @@ const PingBoardPage: React.FC = () => {
           <button className="btn btn-ghost" onClick={() => setShowAdd(true)}>+ Add Monitor</button>
         </div>
         <div className="page-subtitle">
-          {monitors.length} monitors • {monitors.filter(m => m.last_status === "up").length} up • {monitors.filter(m => m.last_status === "down").length} down
+          {monitors.length} monitors • {monitors.filter((m) => m.last_status === "up").length} up • {monitors.filter((m) => m.last_status === "down").length} down
         </div>
       </div>
 
@@ -160,14 +170,14 @@ const PingBoardPage: React.FC = () => {
             <div className="section-block-title" style={{ marginBottom: 12 }}>Add Monitor</div>
             <div className="ping-add-form">
               <input className="form-input" placeholder="Name (e.g., Production API)"
-                value={addName} onChange={e => setAddName(e.target.value)} />
+                value={addName} onChange={(e) => setAddName(e.target.value)} />
               <input className="form-input" placeholder="URL (e.g., https://api.example.com/health)"
-                value={addUrl} onChange={e => setAddUrl(e.target.value)} />
+                value={addUrl} onChange={(e) => setAddUrl(e.target.value)} />
               <div style={{ display: "flex", gap: 8 }}>
-                <select className="form-input" value={addMethod} onChange={e => setAddMethod(e.target.value)}>
+                <select className="form-input" value={addMethod} onChange={(e) => setAddMethod(e.target.value)}>
                   <option>GET</option><option>HEAD</option><option>POST</option>
                 </select>
-                <select className="form-input" value={addInterval} onChange={e => setAddInterval(Number(e.target.value))}>
+                <select className="form-input" value={addInterval} onChange={(e) => setAddInterval(Number(e.target.value))}>
                   <option value={30}>Every 30s</option>
                   <option value={60}>Every 1m</option>
                   <option value={300}>Every 5m</option>
@@ -183,7 +193,7 @@ const PingBoardPage: React.FC = () => {
         )}
 
         <div className="ping-grid">
-          {monitors.map(mon => (
+          {monitors.map((mon) => (
             <div key={mon.id} className={`ping-card ${selectedMonitor === mon.id ? "active" : ""}`}
               onClick={() => handleSelectMonitor(mon.id)}>
               <div className="ping-card-header">
@@ -191,12 +201,12 @@ const PingBoardPage: React.FC = () => {
                 <div className="ping-card-name">{mon.name}</div>
                 <div className="ping-card-actions">
                   <button className="btn btn-ghost"
-                    onClick={e => { e.stopPropagation(); handleCheck(mon.id); }}
+                    onClick={(e) => { e.stopPropagation(); handleCheck(mon.id); }}
                     disabled={checking[mon.id]}>
                     {checking[mon.id] ? "⟳" : "Check"}
                   </button>
                   <button className="btn btn-ghost" style={{ color: "var(--red)" }}
-                    onClick={e => { e.stopPropagation(); handleRemove(mon.id); }}>
+                    onClick={(e) => { e.stopPropagation(); handleRemove(mon.id); }}>
                     ✕
                   </button>
                 </div>
@@ -240,7 +250,7 @@ const PingBoardPage: React.FC = () => {
             </div>
             <div className="ping-history-chart">
               {selectedHistory.slice(-50).map((r, i) => {
-                const maxMs = Math.max(...selectedHistory.map(h => h.response_ms), 1);
+                const maxMs = Math.max(...selectedHistory.map((h) => h.response_ms), 1);
                 const heightPct = Math.min((r.response_ms / maxMs) * 100, 100);
                 return (
                   <div key={i} className="ping-history-bar"
@@ -253,8 +263,8 @@ const PingBoardPage: React.FC = () => {
             {selectedHistory.length > 0 && (
               <div className="ping-history-stats">
                 <div>Avg: {Math.round(selectedHistory.reduce((a, r) => a + r.response_ms, 0) / selectedHistory.length)}ms</div>
-                <div>Min: {Math.min(...selectedHistory.map(r => r.response_ms))}ms</div>
-                <div>Max: {Math.max(...selectedHistory.map(r => r.response_ms))}ms</div>
+                <div>Min: {Math.min(...selectedHistory.map((r) => r.response_ms))}ms</div>
+                <div>Max: {Math.max(...selectedHistory.map((r) => r.response_ms))}ms</div>
                 <div>Checks: {selectedHistory.length}</div>
               </div>
             )}

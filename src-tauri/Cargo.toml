@@ -33,6 +33,9 @@ base64            = "0.22"
 pbkdf2            = "0.12"
 rayon             = "1.10"
 
+# FIX: subprocess kullanmadan hostname almak için (güvenlik)
+sysinfo           = { version = "0.31", default-features = false, features = ["system"] }
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]

@@ -10,16 +10,16 @@ type StateFilter = "open" | "closed" | "all";
 const GitHubHubPage: React.FC = () => {
   const { settings, ghIssues, setGhIssues, ghHubLoading, setGhHubLoading } = useStore();
 
-  const [filterTab, setFilterTab] = useState<FilterTab>("all");
+  const [filterTab, setFilterTab]   = useState<FilterTab>("all");
   const [stateFilter, setStateFilter] = useState<StateFilter>("open");
   const [repoFilter, setRepoFilter] = useState<string>("");
   const [selectedIssue, setSelectedIssue] = useState<GitHubIssue | null>(null);
-  const [comments, setComments] = useState<GitHubComment[]>([]);
+  const [comments, setComments]     = useState<GitHubComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentBody, setCommentBody] = useState("");
-  const [posting, setPosting] = useState(false);
+  const [posting, setPosting]       = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [ghError, setGhError] = useState<string | null>(null);
+  const [ghError, setGhError]       = useState<string | null>(null);
 
   const token = settings?.github_token ?? "";
   const errorMessage = (e: unknown) => e instanceof Error ? e.message : String(e);
@@ -35,12 +35,12 @@ const GitHubHubPage: React.FC = () => {
   }, [token, stateFilter]);
 
   const repos = useMemo(() => {
-    const set = new Set(ghIssues.map(i => i.repo_full_name));
+    const set = new Set(ghIssues.map((i) => i.repo_full_name));
     return Array.from(set).sort();
   }, [ghIssues]);
 
   const filtered = useMemo(() => {
-    return ghIssues.filter(i => {
+    return ghIssues.filter((i) => {
       if (filterTab === "issues" && i.is_pull_request) return false;
       if (filterTab === "prs" && !i.is_pull_request) return false;
       if (repoFilter && i.repo_full_name !== repoFilter) return false;
@@ -71,7 +71,7 @@ const GitHubHubPage: React.FC = () => {
     const [owner, repo] = selectedIssue.repo_full_name.split("/");
     try {
       const c = await postGitHubComment(owner, repo, selectedIssue.number, commentBody, token);
-      setComments(prev => [...prev, c]);
+      setComments((prev) => [...prev, c]);
       setCommentBody("");
     } catch (e) {
       setGhError(errorMessage(e));
@@ -108,7 +108,7 @@ const GitHubHubPage: React.FC = () => {
 
       <div className="ghub-toolbar">
         <div className="ghub-tabs">
-          {(["all", "issues", "prs"] as FilterTab[]).map(t => (
+          {(["all", "issues", "prs"] as FilterTab[]).map((t) => (
             <button key={t} className={`ghub-tab ${filterTab === t ? "active" : ""}`}
               onClick={() => setFilterTab(t)}>
               {t === "all" ? "All" : t === "issues" ? "🔴 Issues" : "🟣 Pull Requests"}
@@ -117,26 +117,42 @@ const GitHubHubPage: React.FC = () => {
         </div>
 
         <div className="ghub-filters">
-          <select value={stateFilter} onChange={e => setStateFilter(e.target.value as StateFilter)}
+          <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value as StateFilter)}
             className="ghub-select">
             <option value="open">Open</option>
             <option value="closed">Closed</option>
             <option value="all">All</option>
           </select>
 
-          <select value={repoFilter} onChange={e => setRepoFilter(e.target.value)}
+          <select value={repoFilter} onChange={(e) => setRepoFilter(e.target.value)}
             className="ghub-select" style={{ maxWidth: 200 }}>
             <option value="">All Repos</option>
-            {repos.map(r => <option key={r} value={r}>{r}</option>)}
+            {repos.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
 
           <input className="ghub-search" placeholder="Search issues…"
-            value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+            value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
         </div>
       </div>
+
+      {/* FIX: Rate limit veya genel hata bildirimi */}
       {ghError && (
         <div className="error-banner" style={{ margin: "8px 28px 0 28px" }}>
-          GitHub Hub error: {ghError}
+          {ghError}
+        </div>
+      )}
+
+      {/* FIX: Kullanıcıya repo limiti (50) hakkında bilgi veriliyor;
+           önceden bu limit tamamen sessizdi. */}
+      {!ghHubLoading && !ghError && ghIssues.length > 0 && (
+        <div style={{
+          fontSize: 10,
+          color: "var(--text3)",
+          padding: "4px 28px",
+          borderBottom: "1px solid var(--border)",
+        }}>
+          En son güncellenen en fazla 50 depodan issue gösterilmektedir
+          {repos.length >= 50 && " — daha fazlası için repo filtresini kullanın"}
         </div>
       )}
 
@@ -154,7 +170,7 @@ const GitHubHubPage: React.FC = () => {
             </div>
           )}
 
-          {!ghHubLoading && filtered.map(issue => (
+          {!ghHubLoading && filtered.map((issue) => (
             <div key={`${issue.repo_full_name}-${issue.number}`}
               className={`ghub-issue-row ${selectedIssue?.id === issue.id ? "active" : ""}`}
               onClick={() => loadComments(issue)}>
@@ -190,7 +206,7 @@ const GitHubHubPage: React.FC = () => {
                 </div>
                 {issue.labels.length > 0 && (
                   <div className="ghub-labels">
-                    {issue.labels.map(l => (
+                    {issue.labels.map((l) => (
                       <span key={l.name} className="ghub-label"
                         style={{ background: `#${l.color}22`, color: `#${l.color}`, borderColor: `#${l.color}44` }}>
                         {l.name}
@@ -237,7 +253,7 @@ const GitHubHubPage: React.FC = () => {
 
                 {commentsLoading && <div className="loading-state" style={{ height: 80 }}><div className="spinner" /></div>}
 
-                {!commentsLoading && comments.map(c => (
+                {!commentsLoading && comments.map((c) => (
                   <div key={c.id} className="ghub-comment">
                     <div className="ghub-comment-header">
                       <img src={c.user_avatar} alt="" className="ghub-avatar" />
@@ -252,7 +268,7 @@ const GitHubHubPage: React.FC = () => {
 
                 <div className="ghub-comment-form">
                   <textarea className="ghub-comment-input" placeholder="Write a comment…"
-                    value={commentBody} onChange={e => setCommentBody(e.target.value)}
+                    value={commentBody} onChange={(e) => setCommentBody(e.target.value)}
                     rows={3} />
                   <button className="btn btn-primary" onClick={handlePostComment}
                     disabled={posting || !commentBody.trim()}>

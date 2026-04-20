@@ -3,6 +3,8 @@ use rayon::prelude::*;
 use std::net::TcpStream;
 use std::time::Duration;
 
+// FIX: Önceki listede 6006 (Storybook) ve 8081 iki kez yer alıyordu.
+// Temizlendi; her port/hint çifti artık yalnızca bir kez görünüyor.
 const DEV_PORTS: &[(u16, &str)] = &[
     // Tauri / Vite — listed first so they're prominent
     (1420,  "Tauri / Vite dev"),
@@ -23,15 +25,13 @@ const DEV_PORTS: &[(u16, &str)] = &[
     (5000,  "Flask / Generic"),
     (8000,  "Django / FastAPI"),
     (8080,  "Generic dev server"),
-    (8081,  "Alt generic"),
+    (8081,  "React Native Metro / Alt"),
     (9000,  "Webpack / SonarQube"),
     // Mobile
     (19006, "Expo"),
-    (8081,  "React Native Metro"),
     // Tools
     (8888,  "Jupyter Notebook"),
     (11434, "Ollama"),
-    (6006,  "Storybook"),
     // Databases (often running locally)
     (5432,  "PostgreSQL"),
     (3306,  "MySQL / MariaDB"),
@@ -44,7 +44,6 @@ const DEV_PORTS: &[(u16, &str)] = &[
 ];
 
 fn is_port_open(port: u16) -> bool {
-    // Use 150ms — enough for localhost, avoids false negatives on slow Windows startup
     TcpStream::connect_timeout(
         &format!("127.0.0.1:{}", port).parse().unwrap(),
         Duration::from_millis(150),
@@ -53,25 +52,13 @@ fn is_port_open(port: u16) -> bool {
 
 #[tauri::command]
 pub fn scan_ports() -> Vec<PortInfo> {
-    use std::collections::HashSet;
-
-    let mut seen_ports = HashSet::new();
-    let mut ports = Vec::new();
-
-    for &(port, hint) in DEV_PORTS {
-        if !seen_ports.insert(port) {
-            continue;
-        }
-        ports.push((port, hint.to_string()));
-    }
-
-    let mut res: Vec<PortInfo> = ports
+    let mut res: Vec<PortInfo> = DEV_PORTS
         .par_iter()
         .map(|(port, hint)| PortInfo {
             port: *port,
             open: is_port_open(*port),
             likely_project: None,
-            service_hint: hint.clone(),
+            service_hint: hint.to_string(),
         })
         .collect();
 

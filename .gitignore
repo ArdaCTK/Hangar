@@ -75,6 +75,12 @@ dist
 .webpack/
 .svelte-kit
 
+# FIX: Bu proje pnpm kullanıyor (pnpm-lock.yaml mevcut).
+# package-lock.json npm tarafından oluşturulur ve burada yanlış
+# lodash versiyonu (4.18.1, var olmayan) içeriyordu. Katkıcılar
+# npm install çalıştırırsa sorun yaşamaması için hariç tutuldu.
+package-lock.json
+
 ### Rust ###
 # Cargo.lock is intentionally NOT ignored — Hangar is a binary application.
 # Committing Cargo.lock ensures reproducible builds for all contributors.

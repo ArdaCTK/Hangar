@@ -6,6 +6,8 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use pbkdf2::pbkdf2_hmac;
 use sha2::{Digest, Sha256};
 
+use crate::commands::utils::get_machine_hostname;
+
 const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 12;
 const PBKDF2_ITERS: u32 = 210_000;
@@ -50,7 +52,7 @@ pub fn decrypt_with_machine_binding(purpose: &str, encoded: &str) -> Result<Stri
 
     let plaintext = cipher
         .decrypt(nonce, ciphertext)
-        .map_err(|_| "Decryption failed".to_string())?;
+        .map_err(|_| "Decryption failed — vault may be from a different machine or corrupted".to_string())?;
 
     String::from_utf8(plaintext).map_err(|e| e.to_string())
 }
@@ -59,7 +61,10 @@ fn derive_key(purpose: &str, salt: &[u8]) -> [u8; 32] {
     let username = std::env::var("USERNAME")
         .or_else(|_| std::env::var("USER"))
         .unwrap_or_else(|_| "hangar-user".to_string());
-    let hostname = get_hostname();
+
+    // FIX: get_machine_hostname() artık sysinfo OS API'lerini kullanıyor;
+    // önceki Command::new("hostname") subprocess PATH manipülasyonuna açıktı.
+    let hostname = get_machine_hostname();
 
     let mut hasher = Sha256::new();
     hasher.update(b"hangar-secure-store-v2:");
@@ -73,20 +78,4 @@ fn derive_key(purpose: &str, salt: &[u8]) -> [u8; 32] {
     let mut key = [0u8; 32];
     pbkdf2_hmac::<Sha256>(&seed, salt, PBKDF2_ITERS, &mut key);
     key
-}
-
-#[cfg(target_os = "windows")]
-fn get_hostname() -> String {
-    std::env::var("COMPUTERNAME").unwrap_or_else(|_| "unknown-host".to_string())
-}
-
-#[cfg(not(target_os = "windows"))]
-fn get_hostname() -> String {
-    std::process::Command::new("hostname")
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .unwrap_or_else(|| "unknown-host".to_string())
-        .trim()
-        .to_string()
 }

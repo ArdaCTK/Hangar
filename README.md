@@ -59,7 +59,7 @@ Hangar gives you a unified command centre for every project on your machine. Sca
 # 1. Clone and install frontend dependencies
 git clone https://github.com/ArdaCTK/hangar
 cd hangar
-npm install
+npm install   # veya: pnpm install
 
 # 2. Development mode
 npm run tauri dev
@@ -92,9 +92,15 @@ On Windows this maps to `C:\Users\<you>\AppData\Roaming\hangar\`.
 
 ## Security Notes
 
-**GitHub token** — encrypted at rest in `settings.json` using AES-256-GCM with PBKDF2-derived keys and a random salt per write. It is only sent to the GitHub API.
+**GitHub token** — encrypted at rest in `settings.json` using AES-256-GCM with PBKDF2-derived keys (210 000 iterations) and a random 16-byte salt per write. It is only sent to the GitHub API.
 
-**Vaultkeeper** — secrets are encrypted with AES-256-GCM and machine-bound PBKDF2 key derivation with random salt. Legacy plaintext and legacy encrypted vault files are auto-migrated to the stronger format on first read.
+**Vaultkeeper — machine binding (önemli uyarı)** — Vault secrets are encrypted with AES-256-GCM using a PBKDF2-derived key that incorporates your machine's **hostname** and **username**. This means:
+
+- ✅ Vault data is protected on your current machine.
+- ⚠️ **If you rename your machine, rename your Windows user account, or copy `vault.json` to a different computer, the vault cannot be decrypted.** There is currently no export/import mechanism for the master key.
+- **Recommended:** Before renaming your machine or migrating to a new PC, export all secrets via the "Export .env" button in Vaultkeeper and store them safely.
+
+Hostname is read via the `sysinfo` OS API — no subprocess is spawned to avoid PATH-based injection attacks.
 
 **PingBoard** — monitors use valid SSL certificate verification. Use `http://` for local dev servers that don't have HTTPS.
 
@@ -102,12 +108,14 @@ On Windows this maps to `C:\Users\<you>\AppData\Roaming\hangar\`.
 
 **Meridian estimates** — time is inferred from commit gaps and clamped between 15 and 120 minutes per commit interval. This is an estimate, not precise time tracking.
 
+**GitHub Hub** — fetches issues from up to 50 of your most recently updated repositories per query. Rate limit errors are surfaced clearly in the UI; add a Personal Access Token for 5 000 requests/hour.
+
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Desktop shell | Tauri 2 |
-| Backend | Rust (walkdir, reqwest, aes-gcm, tokio, serde) |
+| Backend | Rust (walkdir, reqwest, aes-gcm, tokio, serde, sysinfo) |
 | Frontend | React 18 + TypeScript |
 | State | Zustand |
 | Charts | Recharts |
@@ -117,6 +125,8 @@ On Windows this maps to `C:\Users\<you>\AppData\Roaming\hangar\`.
 ## Contributing
 
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+> **Note:** This project uses **pnpm** as its package manager (`pnpm-lock.yaml` is the canonical lock file). `package-lock.json` is excluded from version control. Run `pnpm install` to get started.
 
 ## License
 
